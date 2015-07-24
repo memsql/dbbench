@@ -34,7 +34,7 @@ func mergeJobResultChans(chans ...<-chan JobResult) <-chan JobResult {
 	return outchan
 }
 
-var latencyLogFile = flag.String("latency-log", "", "Output latency log CSV file.")
+var queryStatsFile = flag.String("query-stats-file", "", "Log query specific stats to CSV file. <job name, rows affected, start micros, end micros>")
 var confidence = flag.Float64("confidence", 0.99, "Confidence interval.")
 var updateInterval = flag.Duration("update-interval", 1*time.Second,
 	"Show intermediate stats at this interval.")
@@ -70,10 +70,10 @@ func processResults(config *Config, resultChan <-chan JobResult) map[string]*Job
 	var allTestStats = make(map[string]*JobStats)
 	var recentTestStats = make(map[string]*JobStats)
 
-	if len(*latencyLogFile) > 0 {
-		if file, err := os.Create(*latencyLogFile); err != nil {
+	if len(*queryStatsFile) > 0 {
+		if file, err := os.Create(*queryStatsFile); err != nil {
 			log.Fatalf("Could not open result file %s: %v",
-				*latencyLogFile, err)
+				*queryStatsFile, err)
 		} else {
 			defer file.Close()
 
@@ -97,7 +97,6 @@ func processResults(config *Config, resultChan <-chan JobResult) map[string]*Job
 					strconv.FormatInt(jr.RowsAffected, 10),
 					strconv.FormatInt(jr.Start.Nanoseconds()/1000, 10),
 					strconv.FormatInt(jr.Stop.Nanoseconds()/1000, 10),
-					strconv.FormatInt(jr.Duration.Nanoseconds()/1000, 10),
 				})
 			}
 			if _, ok := allTestStats[jr.Name]; !ok {
