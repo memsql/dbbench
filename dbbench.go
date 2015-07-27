@@ -80,27 +80,29 @@ func TimeQuery(db *sql.DB, jobStart time.Duration, name string, query string) Jo
 
 func runTest(db *sql.DB, config *Config) {
 	testStart := time.Now()
-	if len(config.Setup) > 0 {
+	if len(config.Setup) > 0 && *runSetup {
 		log.Printf("Performing setup")
 		for _, query := range config.Setup {
 			TimeQuery(db, 0, "setup", query)
 		}
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), config.Duration)
-	var resultChans = make([]<-chan JobResult, 0, len(config.Jobs))
+	if *runWorkload {
+		ctx, _ := context.WithTimeout(context.Background(), config.Duration)
+		var resultChans = make([]<-chan JobResult, 0, len(config.Jobs))
 
-	for _, job := range config.Jobs {
-		resultChans = append(resultChans, job.StartResultChan(ctx, db))
+		for _, job := range config.Jobs {
+			resultChans = append(resultChans, job.StartResultChan(ctx, db))
+		}
+
+		testStats := processResults(config, mergeJobResultChans(resultChans...))
+
+		for name, stats := range testStats {
+			log.Printf("%s: %v", name, stats)
+		}
 	}
 
-	testStats := processResults(config, mergeJobResultChans(resultChans...))
-
-	for name, stats := range testStats {
-		log.Printf("%s: %v", name, stats)
-	}
-
-	if len(config.Teardown) > 0 {
+	if len(config.Teardown) > 0 && *runTeardown {
 		log.Printf("Performing teardown")
 		for _, query := range config.Teardown {
 			TimeQuery(db, time.Since(testStart), "teardown", query)
@@ -116,6 +118,9 @@ var port = flag.Int("port", 3306, "Database connection port")
 var database = flag.String("database", "", "Database to use.")
 var maxIdleConns = flag.Int("max-idle-conns", 100, "Maximum idle database connections")
 var maxActiveConns = flag.Int("max-active-conns", 0, "Maximum active database connections")
+var runSetup = flag.Bool("run-setup", true, "Run the setup phase")
+var runWorkload = flag.Bool("run-workload", true, "Run the workload phase")
+var runTeardown = flag.Bool("run-teardown", true, "Run the teardown phase")
 
 func main() {
 	flag.Parse()
