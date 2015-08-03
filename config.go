@@ -109,7 +109,7 @@ func (ij *iniJob) ToJob() (*Job, error) {
 
 		if ij.QueueDepth > 0 {
 			job.QueueDepth = ij.QueueDepth
-		} else if ij.Rate != 0 {
+		} else if ij.Rate == 0 {
 			job.QueueDepth = 1
 		}
 
