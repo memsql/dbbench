@@ -138,8 +138,10 @@ func parseConfig(configFile string) (*Config, error) {
 		return nil, err
 	}
 
-	if config.Duration, err = time.ParseDuration(iniConfig.Global.Duration); err != nil {
-		return nil, fmt.Errorf("error parsing duration: %v", err)
+	if len(iniConfig.Global.Duration) > 0 {
+		if config.Duration, err = time.ParseDuration(iniConfig.Global.Duration); err != nil {
+			return nil, fmt.Errorf("error parsing duration: %v", err)
+		}
 	}
 	config.Setup, err = iniConfig.Setup.GetQueries()
 	if err != nil && err != NoQueryProvidedError {

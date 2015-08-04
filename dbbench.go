@@ -88,7 +88,10 @@ func runTest(db *sql.DB, config *Config) {
 	}
 
 	if *runWorkload {
-		ctx, _ := context.WithTimeout(context.Background(), config.Duration)
+		ctx := context.Background()
+		if config.Duration > 0 {
+			ctx, _ = context.WithTimeout(context.Background(), config.Duration)
+		}
 		var resultChans = make([]<-chan JobResult, 0, len(config.Jobs))
 
 		for _, job := range config.Jobs {

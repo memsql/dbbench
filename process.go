@@ -34,10 +34,12 @@ func mergeJobResultChans(chans ...<-chan JobResult) <-chan JobResult {
 	return outchan
 }
 
-var queryStatsFile = flag.String("query-stats-file", "", "Log query specific stats to CSV file. <job name, rows affected, start micros, end micros>")
+var queryStatsFile = flag.String("query-stats-file", "",
+	"Log query specific stats to CSV file. <job name, rows affected, start micros, end micros>")
 var confidence = flag.Float64("confidence", 0.99, "Confidence interval.")
-var updateInterval = flag.Duration("update-interval", 1*time.Second,
+var updateInterval = flag.Duration("intermediate-stats-interval", 1*time.Second,
 	"Show intermediate stats at this interval.")
+var intermediateUpdates = flag.Bool("intermediate-stats", true, "Show intermediate stats every update-interval.")
 
 type JobStats struct {
 	StreamingStats
@@ -83,6 +85,9 @@ func processResults(config *Config, resultChan <-chan JobResult) map[string]*Job
 	}
 
 	ticker := time.NewTicker(*updateInterval)
+	if !*intermediateUpdates {
+		ticker.Stop()
+	}
 	defer ticker.Stop()
 
 	for {
