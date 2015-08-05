@@ -46,7 +46,7 @@ type Config struct {
 type JobResult struct {
 	Name         string
 	Start        time.Duration
-	Stop         time.Duration
+	Elapsed      time.Duration
 	RowsAffected int64
 }
 

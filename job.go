@@ -47,7 +47,7 @@ func (ji *JobInvocation) Invoke(db *sql.DB, start time.Duration) *JobResult {
 	stop := time.Now()
 	elapsed := stop.Sub(invokeStart)
 
-	return &JobResult{ji.Name, start, start + elapsed, rowsAffected}
+	return &JobResult{ji.Name, start, elapsed, rowsAffected}
 }
 
 func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation {

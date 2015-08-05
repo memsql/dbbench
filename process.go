@@ -49,12 +49,12 @@ type JobStats struct {
 }
 
 func (js *JobStats) Update(jr *JobResult) {
-	js.Add(float64(jr.Stop - jr.Start))
+	js.Add(float64(jr.Elapsed))
 	if js.Start == 0 || jr.Start < js.Start {
 		js.Start = jr.Start
 	}
-	if js.Stop == 0 || jr.Stop > js.Stop {
-		js.Stop = jr.Stop
+	if js.Stop == 0 || jr.Start+jr.Elapsed > js.Stop {
+		js.Stop = jr.Start + jr.Elapsed
 	}
 	js.RowsAffected += jr.RowsAffected
 }
@@ -99,9 +99,9 @@ func processResults(config *Config, resultChan <-chan *JobResult) map[string]*Jo
 			if resultFile != nil {
 				resultFile.Write([]string{
 					jr.Name,
-					strconv.FormatInt(jr.RowsAffected, 10),
 					strconv.FormatInt(jr.Start.Nanoseconds()/1000, 10),
-					strconv.FormatInt(jr.Stop.Nanoseconds()/1000, 10),
+					strconv.FormatInt(jr.Elapsed.Nanoseconds()/1000, 10),
+					strconv.FormatInt(jr.RowsAffected, 10),
 				})
 			}
 			if _, ok := allTestStats[jr.Name]; !ok {
