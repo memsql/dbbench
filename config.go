@@ -13,16 +13,16 @@ import (
 
 type queryConfig struct {
 	Query            []string
-	QueryFile        []string
+	Query_File       []string
 	Multi_query_mode string
 }
 
 type iniJob struct {
-	QueryLog string
+	Query_Log string
 
 	queryConfig
-	Rate       float64
-	QueueDepth int
+	Rate        float64
+	Queue_Depth int
 
 	Count int
 	Start string
@@ -60,13 +60,13 @@ func canonicalizeQuery(query string) (string, error) {
 }
 
 func (qc *queryConfig) GetQueries() ([]string, error) {
-	if len(qc.Query) == 0 && len(qc.QueryFile) == 0 {
+	if len(qc.Query) == 0 && len(qc.Query_File) == 0 {
 		return nil, NoQueryProvidedError
 	}
 
 	queries := make([]string, 0, 1)
 
-	for _, queryFile := range qc.QueryFile {
+	for _, queryFile := range qc.Query_File {
 		if contents, err := ioutil.ReadFile(queryFile); err != nil {
 			return nil, err
 		} else {
@@ -95,10 +95,10 @@ func (ij *iniJob) ToJob() (*Job, error) {
 	var job = new(Job)
 	var err error
 
-	if len(ij.QueryLog) > 0 {
-		job.QueryLog, err = os.Open(ij.QueryLog)
+	if len(ij.Query_Log) > 0 {
+		job.QueryLog, err = os.Open(ij.Query_Log)
 		if err != nil {
-			return nil, fmt.Errorf("error opening %s: %v", ij.QueryLog, err)
+			return nil, fmt.Errorf("error opening %s: %v", ij.Query_Log, err)
 		}
 	} else {
 		job.Queries, err = ij.queryConfig.GetQueries()
@@ -109,8 +109,8 @@ func (ij *iniJob) ToJob() (*Job, error) {
 			return nil, errors.New("more than one query provided without multi-query-mode=multi-connection")
 		}
 
-		if ij.QueueDepth > 0 {
-			job.QueueDepth = ij.QueueDepth
+		if ij.Queue_Depth > 0 {
+			job.QueueDepth = ij.Queue_Depth
 		} else if ij.Rate == 0 {
 			job.QueueDepth = 1
 		}
