@@ -9,14 +9,18 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 	"time"
 )
+
+type JobInvocation struct {
+	Name    string
+	Queries []string
+}
 
 type Job struct {
 	Name string
 
-	Query      string
+	Queries    []string
 	QueueDepth int
 	Rate       float64
 	Count      int
@@ -34,8 +38,8 @@ type QueryLogRecord struct {
 
 type Config struct {
 	Duration time.Duration
-	Setup    []string
-	Teardown []string
+	Setup    JobInvocation
+	Teardown JobInvocation
 	Jobs     map[string]*Job
 }
 
@@ -44,47 +48,12 @@ type JobResult struct {
 	Start        time.Duration
 	Stop         time.Duration
 	RowsAffected int64
-	Duration     time.Duration
-}
-
-func TimeQuery(db *sql.DB, jobStart time.Duration, name string, query string) JobResult {
-	start := time.Now()
-	var rowsAffected int64
-
-	switch strings.Fields(query)[0] {
-	case "select", "show":
-		rows, err := db.Query(query)
-		if err != nil {
-			log.Fatalf("error for query %s in %s: %v", query, name, err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			rowsAffected++
-		}
-		if err = rows.Err(); err != nil {
-			log.Fatalf("error for query %s in %s: %v", query, name, err)
-		}
-	default:
-		res, err := db.Exec(query)
-		if err != nil {
-			log.Fatalf("error for query %s in %s: %v", query, name, err)
-		}
-		rowsAffected, _ = res.RowsAffected()
-	}
-
-	stop := time.Now()
-	elapsed := stop.Sub(start)
-
-	return JobResult{name, jobStart, jobStart + elapsed, rowsAffected, elapsed}
 }
 
 func runTest(db *sql.DB, config *Config) {
-	testStart := time.Now()
-	if len(config.Setup) > 0 && *runSetup {
+	if len(config.Setup.Queries) > 0 && *runSetup {
 		log.Printf("Performing setup")
-		for _, query := range config.Setup {
-			TimeQuery(db, 0, "setup", query)
-		}
+		config.Setup.Invoke(db, 0)
 	}
 
 	if *runWorkload {
@@ -92,7 +61,7 @@ func runTest(db *sql.DB, config *Config) {
 		if config.Duration > 0 {
 			ctx, _ = context.WithTimeout(context.Background(), config.Duration)
 		}
-		var resultChans = make([]<-chan JobResult, 0, len(config.Jobs))
+		var resultChans = make([]<-chan *JobResult, 0, len(config.Jobs))
 
 		for _, job := range config.Jobs {
 			resultChans = append(resultChans, job.StartResultChan(ctx, db))
@@ -105,11 +74,9 @@ func runTest(db *sql.DB, config *Config) {
 		}
 	}
 
-	if len(config.Teardown) > 0 && *runTeardown {
+	if len(config.Teardown.Queries) > 0 && *runTeardown {
 		log.Printf("Performing teardown")
-		for _, query := range config.Teardown {
-			TimeQuery(db, time.Since(testStart), "teardown", query)
-		}
+		config.Teardown.Invoke(db, 0)
 	}
 }
 

@@ -11,14 +11,14 @@ import (
 	"time"
 )
 
-func mergeJobResultChans(chans ...<-chan JobResult) <-chan JobResult {
+func mergeJobResultChans(chans ...<-chan *JobResult) <-chan *JobResult {
 	var wg sync.WaitGroup
 
-	outchan := make(chan JobResult, 2*len(chans))
+	outchan := make(chan *JobResult, 2*len(chans))
 
 	wg.Add(len(chans))
 	for _, ch := range chans {
-		go func(c <-chan JobResult) {
+		go func(c <-chan *JobResult) {
 			for jr := range c {
 				outchan <- jr
 			}
@@ -49,7 +49,7 @@ type JobStats struct {
 }
 
 func (js *JobStats) Update(jr *JobResult) {
-	js.Add(float64(jr.Duration))
+	js.Add(float64(jr.Stop - jr.Start))
 	if js.Start == 0 || jr.Start < js.Start {
 		js.Start = jr.Start
 	}
@@ -67,7 +67,7 @@ func (js *JobStats) String() string {
 		js.RowsAffected, float64(js.RowsAffected)/jsTime)
 }
 
-func processResults(config *Config, resultChan <-chan JobResult) map[string]*JobStats {
+func processResults(config *Config, resultChan <-chan *JobResult) map[string]*JobStats {
 	var resultFile *csv.Writer
 	var allTestStats = make(map[string]*JobStats)
 	var recentTestStats = make(map[string]*JobStats)
@@ -111,8 +111,8 @@ func processResults(config *Config, resultChan <-chan JobResult) map[string]*Job
 				recentTestStats[jr.Name] = new(JobStats)
 			}
 
-			allTestStats[jr.Name].Update(&jr)
-			recentTestStats[jr.Name].Update(&jr)
+			allTestStats[jr.Name].Update(jr)
+			recentTestStats[jr.Name].Update(jr)
 
 		case <-ticker.C:
 			for name, stats := range recentTestStats {

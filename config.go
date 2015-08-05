@@ -12,8 +12,9 @@ import (
 )
 
 type queryConfig struct {
-	Query     []string
-	QueryFile []string
+	Query            []string
+	QueryFile        []string
+	Multi_query_mode string
 }
 
 type iniJob struct {
@@ -45,6 +46,9 @@ func canonicalizeQuery(query string) (string, error) {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if len(query) == 0 {
 		return "", errors.New("cannot use empty query")
+	}
+	if strings.Contains(query, *QS) {
+		return "", errors.New("cannot have a semicolon")
 	}
 	switch strings.Fields(query)[0] {
 	case "begin":
@@ -90,7 +94,6 @@ func (qc *queryConfig) GetQueries() ([]string, error) {
 func (ij *iniJob) ToJob() (*Job, error) {
 	var job = new(Job)
 	var err error
-	var queries []string
 
 	if len(ij.QueryLog) > 0 {
 		job.QueryLog, err = os.Open(ij.QueryLog)
@@ -98,14 +101,13 @@ func (ij *iniJob) ToJob() (*Job, error) {
 			return nil, fmt.Errorf("error opening %s: %v", ij.QueryLog, err)
 		}
 	} else {
-		queries, err = ij.queryConfig.GetQueries()
+		job.Queries, err = ij.queryConfig.GetQueries()
 		if err != nil {
 			return nil, err
 		}
-		if len(queries) > 1 {
-			return nil, errors.New("more than one query provided")
+		if len(job.Queries) > 1 && ij.queryConfig.Multi_query_mode != "multi-connection" {
+			return nil, errors.New("more than one query provided without multi-query-mode=multi-connection")
 		}
-		job.Query = queries[0]
 
 		if ij.QueueDepth > 0 {
 			job.QueueDepth = ij.QueueDepth
@@ -143,14 +145,16 @@ func parseConfig(configFile string) (*Config, error) {
 			return nil, fmt.Errorf("error parsing duration: %v", err)
 		}
 	}
-	config.Setup, err = iniConfig.Setup.GetQueries()
+	config.Setup.Queries, err = iniConfig.Setup.GetQueries()
 	if err != nil && err != NoQueryProvidedError {
 		return nil, fmt.Errorf("error parsing setup: %v", err)
 	}
-	config.Teardown, err = iniConfig.Teardown.GetQueries()
+	config.Setup.Name = "setup"
+	config.Teardown.Queries, err = iniConfig.Teardown.GetQueries()
 	if err != nil && err != NoQueryProvidedError {
 		return nil, fmt.Errorf("error parsing teardown: %v", err)
 	}
+	config.Teardown.Name = "teardown"
 
 	config.Jobs = make(map[string]*Job)
 	for name, iniJob := range iniConfig.Job {

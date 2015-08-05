@@ -11,8 +11,48 @@ import (
 	"time"
 )
 
-func (job *Job) startTickQueryChannel(ctx context.Context) <-chan string {
-	ch := make(chan string)
+func (ji *JobInvocation) runQuery(db *sql.DB, query string) int64 {
+	var rowsAffected int64
+	switch strings.Fields(query)[0] {
+	case "select", "show":
+		rows, err := db.Query(query)
+		if err != nil {
+			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			rowsAffected++
+		}
+		if err = rows.Err(); err != nil {
+			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
+		}
+	default:
+		res, err := db.Exec(query)
+		if err != nil {
+			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
+		}
+		rowsAffected, _ = res.RowsAffected()
+	}
+	return rowsAffected
+}
+
+func (ji *JobInvocation) Invoke(db *sql.DB, start time.Duration) *JobResult {
+	invokeStart := time.Now()
+	var rowsAffected int64
+
+	for _, query := range ji.Queries {
+		rowsAffected += ji.runQuery(db, query)
+	}
+
+	stop := time.Now()
+	elapsed := stop.Sub(invokeStart)
+
+	return &JobResult{ji.Name, start, start + elapsed, rowsAffected}
+}
+
+func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation {
+	ji := &JobInvocation{job.Name, job.Queries}
+	ch := make(chan *JobInvocation)
 	go func() {
 		defer close(ch)
 
@@ -24,15 +64,15 @@ func (job *Job) startTickQueryChannel(ctx context.Context) <-chan string {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				ch <- job.Query
+				ch <- ji
 			}
 		}
 	}()
 	return ch
 }
 
-func (job *Job) startLogQueryChannel(ctx context.Context) <-chan string {
-	ch := make(chan string)
+func (job *Job) startLogQueryChannel(ctx context.Context) <-chan *JobInvocation {
+	ch := make(chan *JobInvocation)
 	go func() {
 		defer close(ch)
 
@@ -61,7 +101,8 @@ func (job *Job) startLogQueryChannel(ctx context.Context) <-chan string {
 				case <-ctx.Done():
 					return
 				case <-time.NewTimer(timeToSleep).C:
-					ch <- parts[1]
+					// TODO(awreece) Support multi statement log files.
+					ch <- &JobInvocation{job.Name, []string{parts[1]}}
 				}
 			}
 		}
@@ -69,20 +110,21 @@ func (job *Job) startLogQueryChannel(ctx context.Context) <-chan string {
 	return ch
 }
 
-func (job *Job) startQueryChannel(ctx context.Context) <-chan string {
+func (job *Job) startQueryChannel(ctx context.Context) <-chan *JobInvocation {
 	if job.Rate > 0 {
 		return job.startTickQueryChannel(ctx)
 	} else if job.QueryLog != nil {
 		return job.startLogQueryChannel(ctx)
 	} else {
-		ch := make(chan string)
+		ji := &JobInvocation{job.Name, job.Queries}
+		ch := make(chan *JobInvocation)
 		go func() {
 			defer close(ch)
 			for i := 0; job.Count == 0 || i < job.Count; i++ {
 				select {
 				case <-ctx.Done():
 					return
-				case ch <- job.Query:
+				case ch <- ji:
 				}
 			}
 		}()
@@ -90,9 +132,9 @@ func (job *Job) startQueryChannel(ctx context.Context) <-chan string {
 	}
 }
 
-func (job *Job) StartResultChan(ctx context.Context, db *sql.DB) <-chan JobResult {
-	jobStart := time.Now()
-	results := make(chan JobResult)
+func (job *Job) StartResultChan(ctx context.Context, db *sql.DB) <-chan *JobResult {
+	testStart := time.Now()
+	results := make(chan *JobResult)
 
 	if job.Stop > 0 {
 		ctx, _ = context.WithTimeout(ctx, job.Stop)
@@ -117,18 +159,18 @@ func (job *Job) StartResultChan(ctx context.Context, db *sql.DB) <-chan JobResul
 			close(queueSem)
 		}()
 
-		for query := range job.startQueryChannel(ctx) {
+		for jobInvockation := range job.startQueryChannel(ctx) {
 			wg.Add(1)
 			if job.QueueDepth > 0 {
 				<-queueSem
 			}
-			go func(q string) {
-				results <- TimeQuery(db, time.Since(jobStart), job.Name, q)
+			go func(ji *JobInvocation) {
+				results <- ji.Invoke(db, time.Since(testStart))
 				if job.QueueDepth > 0 {
 					queueSem <- nil
 				}
 				wg.Done()
-			}(query)
+			}(jobInvockation)
 		}
 	})
 	return results
