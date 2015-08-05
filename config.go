@@ -42,10 +42,12 @@ var NoQueryProvidedError = errors.New("no query provided")
 
 var QS = flag.String("query-separator", ";", "Separator between queries in a file.")
 
+var EmptyQueryError = errors.New("cannot use empty query")
+
 func canonicalizeQuery(query string) (string, error) {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if len(query) == 0 {
-		return "", errors.New("cannot use empty query")
+		return "", EmptyQueryError
 	}
 	if strings.Contains(query, *QS) {
 		return "", errors.New("cannot have a semicolon")
@@ -71,10 +73,10 @@ func (qc *queryConfig) GetQueries() ([]string, error) {
 			return nil, err
 		} else {
 			for _, query := range strings.Split(string(contents), *QS) {
-				if query, err := canonicalizeQuery(query); err != nil {
+				if query, err := canonicalizeQuery(query); err != nil && err != EmptyQueryError {
 					return nil, fmt.Errorf("invalid query in %s: %v",
 						queryFile, err)
-				} else {
+				} else if err == nil {
 					queries = append(queries, query)
 				}
 			}
@@ -86,6 +88,9 @@ func (qc *queryConfig) GetQueries() ([]string, error) {
 		} else {
 			queries = append(queries, query)
 		}
+	}
+	if len(queries) == 0 {
+		return nil, errors.New("no queries provided")
 	}
 
 	return queries, nil
