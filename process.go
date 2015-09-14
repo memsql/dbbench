@@ -35,7 +35,7 @@ func mergeJobResultChans(chans ...<-chan *JobResult) <-chan *JobResult {
 }
 
 var queryStatsFile = flag.String("query-stats-file", "",
-	"Log query specific stats to CSV file. <job name, rows affected, start micros, end micros>")
+	"Log query specific stats to CSV file. <job name, start micros, elapsed micros, rows affected>")
 var confidence = flag.Float64("confidence", 0.99, "Confidence interval.")
 var updateInterval = flag.Duration("intermediate-stats-interval", 1*time.Second,
 	"Show intermediate stats at this interval.")
