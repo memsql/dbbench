@@ -83,9 +83,9 @@ count=1
 query-file=select.sql
 stop=1m
 
-[job "create a new query twice per second"]
+[job "create a new query every 2 seconds"]
 query=select * from mytable where a=b
-rate=2
+rate=0.5
 
 [job "run 2 queries at a time for 10 seconds, starting at 5s"]
 query=select count(*) from mytable
