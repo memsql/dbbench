@@ -111,6 +111,6 @@ with the query log above would execute an insert at 1.000s, 1.003s, and 1.006s:
 
 ```ini
 [job "run after one second"]
-querylog=insert.log
+query-log=insert.log
 start=1s
 ```
