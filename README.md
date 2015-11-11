@@ -46,7 +46,14 @@ $ dbbench --host=127.0.0.1 run.ini
 
 ## Job definitions
 
-There are two major types jobs: repeatedly executing a single query or
+Each job is represented by a section in the config file named `job` with a
+(required) name parameter:
+
+```ini
+[job "my job name"]
+```
+
+There are two different types jobs: repeatedly executing a single query or
 replaying a query log.
 
 ### Single query jobs
@@ -113,4 +120,52 @@ with the query log above would execute an insert at 1.000s, 1.003s, and 1.006s:
 [job "run after one second"]
 query-log=insert.log
 start=1s
+```
+
+## Setup / teardown
+
+It is possible to describe (optional) setup and teardown phases
+for the workload. These phases constitute queries that are executed
+serially before the workload starts. Any number of queries can
+be in a setup or a teardown section.
+
+```ini
+[setup]
+query-file=create_table.sql
+query=insert into t select RAND(), RAND()
+query=insert into t select RAND(), RAND() from t
+query=insert into t select RAND(), RAND() from t
+query=insert into t select RAND(), RAND() from t
+query=insert into t select RAND(), RAND() from t
+query=insert into t select RAND(), RAND() from t
+
+[teardown]
+query=drop table t
+
+[job "count"]
+query=count(*) from t where a < b
+count=30
+```
+
+NOTE: since go uses connection pooling, it is unsafe to set
+session variables in the setup script if it is possible for
+more than one query to execute simultaneously during the workload
+phase (e.g. if multiple jobs are specified, or if `rate` or 
+`queue-depth` parameters are used) since it is impossible to
+guarantee that the same job will re-use the same connection.
+
+## Global configuration
+
+There is an optional global section with one property:
+
+  - `duration`: Stop the test after this amount of time has elapsed.
+
+For example, the following config describes a workload that will stop after 10 seconds:
+
+```ini
+[global]
+duration=10s
+
+[job "test job"]
+query=select 1+1
 ```
