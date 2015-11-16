@@ -13,7 +13,7 @@ import (
 
 func (ji *JobInvocation) runQuery(db *sql.DB, query string) int64 {
 	var rowsAffected int64
-	switch strings.Fields(query)[0] {
+	switch strings.ToLower(strings.Fields(query)[0]) {
 	case "select", "show", "explain", "describe", "desc":
 		rows, err := db.Query(query)
 		if err != nil {

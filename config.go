@@ -45,14 +45,14 @@ var QS = flag.String("query-separator", ";", "Separator between queries in a fil
 var EmptyQueryError = errors.New("cannot use empty query")
 
 func canonicalizeQuery(query string) (string, error) {
-	query = strings.ToLower(strings.TrimSpace(query))
+	query = strings.TrimSpace(query)
 	if len(query) == 0 {
 		return "", EmptyQueryError
 	}
 	if strings.Contains(query, *QS) {
 		return "", errors.New("cannot have a semicolon")
 	}
-	switch strings.Fields(query)[0] {
+	switch strings.ToLower(strings.Fields(query)[0]) {
 	case "begin":
 		return "", errors.New("cannot use transactions")
 	case "use":
