@@ -5,9 +5,8 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
-        _ "github.com/denisenkom/go-mssqldb"
-        _ "github.com/lib/pq"
 	"io"
 	"log"
 	"os"
@@ -94,6 +93,19 @@ var runSetup = flag.Bool("run-setup", true, "Run the setup phase")
 var runWorkload = flag.Bool("run-workload", true, "Run the workload phase")
 var runTeardown = flag.Bool("run-teardown", true, "Run the teardown phase")
 
+func getDataSourceName() string {
+	switch *driver {
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", *username,
+			*password, *host, *port, *database)
+	case "mssql":
+		return fmt.Sprintf("user id=%s;password=%s;server=%s;port=%d;database=%s", *username, *password, *host, *port, *database)
+	default:
+		log.Fatalf("Invalid driver %s", *driver)
+		return ""
+	}
+}
+
 func main() {
 	flag.Parse()
 	flag.Usage = func() {
@@ -106,8 +118,7 @@ func main() {
 		log.Fatal("No config file to parse")
 	}
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", *username, *password, *host,
-		*port, *database)
+	dsn := getDataSourceName()
 	log.Println("Connecting to", dsn)
 
 	db, err := sql.Open(*driver, dsn)
