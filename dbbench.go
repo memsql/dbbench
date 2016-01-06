@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"time"
 )
 
@@ -51,6 +52,17 @@ type JobResult struct {
 	RowsAffected int64
 }
 
+func cancelOnInterrupt(cancel context.CancelFunc) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		signal.Stop(c)
+		cancel()
+		close(c)
+	}()
+}
+
 func runTest(db *sql.DB, config *Config) {
 	if len(config.Setup.Queries) > 0 && *runSetup {
 		log.Printf("Performing setup")
@@ -58,9 +70,11 @@ func runTest(db *sql.DB, config *Config) {
 	}
 
 	if *runWorkload {
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cancelOnInterrupt(cancel)
 		if config.Duration > 0 {
-			ctx, _ = context.WithTimeout(context.Background(), config.Duration)
+			ctx, _ = context.WithTimeout(ctx, config.Duration)
 		}
 		var resultChans = make([]<-chan *JobResult, 0, len(config.Jobs))
 
