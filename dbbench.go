@@ -64,32 +64,30 @@ func cancelOnInterrupt(cancel context.CancelFunc) {
 }
 
 func runTest(db *sql.DB, config *Config) {
-	if len(config.Setup.Queries) > 0 && *runSetup {
+	if len(config.Setup.Queries) > 0 {
 		log.Printf("Performing setup")
 		config.Setup.Invoke(db, 0)
 	}
 
-	if *runWorkload {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		cancelOnInterrupt(cancel)
-		if config.Duration > 0 {
-			ctx, _ = context.WithTimeout(ctx, config.Duration)
-		}
-		var resultChans = make([]<-chan *JobResult, 0, len(config.Jobs))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cancelOnInterrupt(cancel)
+	if config.Duration > 0 {
+		ctx, _ = context.WithTimeout(ctx, config.Duration)
+	}
+	var resultChans = make([]<-chan *JobResult, 0, len(config.Jobs))
 
-		for _, job := range config.Jobs {
-			resultChans = append(resultChans, job.StartResultChan(ctx, db))
-		}
-
-		testStats := processResults(config, mergeJobResultChans(resultChans...))
-
-		for name, stats := range testStats {
-			log.Printf("%s: %v", name, stats)
-		}
+	for _, job := range config.Jobs {
+		resultChans = append(resultChans, job.StartResultChan(ctx, db))
 	}
 
-	if len(config.Teardown.Queries) > 0 && *runTeardown {
+	testStats := processResults(config, mergeJobResultChans(resultChans...))
+
+	for name, stats := range testStats {
+		log.Printf("%s: %v", name, stats)
+	}
+
+	if len(config.Teardown.Queries) > 0 {
 		log.Printf("Performing teardown")
 		config.Teardown.Invoke(db, 0)
 	}
@@ -103,9 +101,6 @@ var port = flag.Int("port", 3306, "Database connection port")
 var database = flag.String("database", "", "Database to use.")
 var maxIdleConns = flag.Int("max-idle-conns", 100, "Maximum idle database connections")
 var maxActiveConns = flag.Int("max-active-conns", 0, "Maximum active database connections")
-var runSetup = flag.Bool("run-setup", true, "Run the setup phase")
-var runWorkload = flag.Bool("run-workload", true, "Run the workload phase")
-var runTeardown = flag.Bool("run-teardown", true, "Run the teardown phase")
 
 func getDataSourceName() string {
 	switch *driver {
