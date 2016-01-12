@@ -1,0 +1,8 @@
+dbbench
+Copyright 2015-2016 MemSQL
+
+This product includes software developed at MemSQL (http://www.memsql.com/).
+
+The NormInverseCDF function contains code derived from Peter John Acklam's
+inverse normal approximation code. The original code is available from:
+    http://home.online.no/~pjacklam/notes/invnorm/

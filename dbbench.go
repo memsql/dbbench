@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2015-2016 by MemSQL. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package main
 
 import (
@@ -103,6 +119,7 @@ var port = flag.Int("port", 3306, "Database connection port")
 var database = flag.String("database", "", "Database to use.")
 var maxIdleConns = flag.Int("max-idle-conns", 100, "Maximum idle database connections")
 var maxActiveConns = flag.Int("max-active-conns", 0, "Maximum active database connections")
+var printVersion = flag.Bool("version", false, "Print the version and quit")
 
 func getDataSourceName() string {
 	switch *driver {
@@ -122,6 +139,11 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s [options] <runfile.ini>\n", os.Args[0])
 		flag.PrintDefaults()
+	}
+
+	if *printVersion {
+		fmt.Println("0.1")
+		return
 	}
 
 	if len(flag.Args()) == 0 {

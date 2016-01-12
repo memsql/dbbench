@@ -1,6 +1,7 @@
 # dbbench
 
-`dbbench` is a tool designed to do one simple task: _to run a workload against a database_ and (optionally) record statistics for post processing.
+`dbbench` is a tool designed to do one simple task: _to run a workload against
+a database_ and (optionally) record statistics for post processing.
 
 `dbbench` does *not*:
 
@@ -165,6 +166,13 @@ For example, the following config describes a workload that will stop after 10 s
 ```ini
 duration=10s
 
-[job "test job"]
+[test job]
 query=select 1+1
 ```
+
+# Author
+`dbbench` is heavily inspired by [`fio`](https://github.com/axboe/fio). It
+was written by Alex Reece <awreece@gmail.com> (Performance Engineer at MemSQL)
+to enable flexible testing of a database. He got tired of writing specific test
+applications to simulate a given workload, and found that the existing database
+benchmark/test tools out there weren't flexible enough to do what he wanted.

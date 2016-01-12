@@ -1,0 +1,18 @@
+As specified by the LICENSE file, dbbench is free software published under
+version 2 of the Apache license. That covers the copying part of the license.
+When using dbbench, you are encouraged to uphold the following moral
+obligations:
+
+- If you publish results that are done using dbbench, it should be clearly
+  stated that dbbench was used. The specific version should also be listed.
+
+- If you develop features or bug fixes for dbbench, they should be sent
+  upstream for inclusion into the main repository. This isn't specific to
+  dbbench, that is a general rule for any open source project. It's just the
+  Right Thing to do. Plus it means that you don't have to maintain the feature
+  or change internally. In the long run, this is saving you a lot of time.
+
+I would consider the above to fall under "common courtesy", but since
+people tend to have differing opinions of that, it doesn't hurt to spell out
+my expectations clearly.
+
