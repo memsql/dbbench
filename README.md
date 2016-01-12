@@ -20,8 +20,7 @@ analysis.
 
 ## Getting started
 
-To install, first install the dependencies (`golang-go`, `git`, and
-`mercurial`). If you are installing `go` for the first time, you will also need
+To install, first install the dependencies (`golang-go` and `git`). If you are installing `go` for the first time, you will also need
 to [set your `GOPATH` environment
 variable](https://golang.org/doc/code.html#GOPATH) and add `$GOPATH/bin` to
 your `PATH`.
@@ -34,7 +33,7 @@ To run, you first need to create a run file. At minimum, a run file contains
 a job section. A trivial config file might be:
 
 ```ini
-[job "test job"]
+[test job]
 query=show databases
 count=1
 ```
@@ -46,12 +45,13 @@ $ dbbench --host=127.0.0.1 run.ini
 
 ## Job definitions
 
-Each job is represented by a section in the config file named `job` with a
-(required) name parameter:
+Each job is represented by a section in the config file:
 
 ```ini
-[job "my job name"]
+[my job name]
 ```
+
+_Note: the names `[setup]`, `[teardown]`, and `[global]` are reserved. See below for more details._
 
 There are two different types jobs: repeatedly executing a single query or
 replaying a query log.
@@ -82,19 +82,19 @@ controlling how a job is run:
 For example:
 
 ```ini
-[job "run once"]
+[run once]
 query=select sum(a) from mytable
 count=1
 
-[job "run one at a time as fast as possible for one minute"]
+[run one at a time as fast as possible for one minute]
 query-file=select.sql
 stop=1m
 
-[job "create a new query every 2 seconds"]
+[create a new query every 2 seconds]
 query=select * from mytable where a=b
 rate=0.5
 
-[job "run 2 queries at a time for 10 seconds, starting at 5s"]
+[run 2 queries at a time for 10 seconds, starting at 5s]
 query=select count(*) from mytable
 queue-depth=2
 start=5s
@@ -117,7 +117,7 @@ the correct delay from the initial query. For example, the job config below
 with the query log above would execute an insert at 1.000s, 1.003s, and 1.006s:
 
 ```ini
-[job "run after one second"]
+[run after one second]
 query-log=insert.log
 start=1s
 ```
@@ -142,7 +142,7 @@ query=insert into t select RAND(), RAND() from t
 [teardown]
 query=drop table t
 
-[job "count"]
+[count]
 query=count(*) from t where a < b
 count=30
 ```
@@ -163,7 +163,6 @@ There is an optional global section with one property:
 For example, the following config describes a workload that will stop after 10 seconds:
 
 ```ini
-[global]
 duration=10s
 
 [job "test job"]

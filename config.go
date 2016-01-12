@@ -1,42 +1,16 @@
 package main
 
 import (
-	"code.google.com/p/gcfg"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/awreece/goini"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
-
-type queryConfig struct {
-	Query            []string
-	Query_File       []string
-	Multi_query_mode string
-}
-
-type iniJob struct {
-	Query_Log string
-
-	queryConfig
-	Rate        float64
-	Queue_Depth int
-
-	Count int
-	Start string
-	Stop  string
-}
-
-type iniConfig struct {
-	Global struct {
-		Duration string
-	}
-	Setup    queryConfig
-	Teardown queryConfig
-	Job      map[string]*iniJob
-}
 
 var NoQueryProvidedError = errors.New("no query provided")
 
@@ -61,119 +35,217 @@ func canonicalizeQuery(query string) (string, error) {
 	return query, nil
 }
 
-func (qc *queryConfig) GetQueries() ([]string, error) {
-	if len(qc.Query) == 0 && len(qc.Query_File) == 0 {
-		return nil, NoQueryProvidedError
-	}
-
-	queries := make([]string, 0, 1)
-
-	for _, queryFile := range qc.Query_File {
-		if contents, err := ioutil.ReadFile(queryFile); err != nil {
-			return nil, err
-		} else {
-			for _, query := range strings.Split(string(contents), *QS) {
-				if query, err := canonicalizeQuery(query); err != nil && err != EmptyQueryError {
-					return nil, fmt.Errorf("invalid query in %s: %v",
-						queryFile, err)
-				} else if err == nil {
-					queries = append(queries, query)
-				}
+func readQueriesFromFile(queryFile string) ([]string, error) {
+	var queries []string
+	if contents, err := ioutil.ReadFile(queryFile); err != nil {
+		return nil, err
+	} else {
+		for _, query := range strings.Split(string(contents), *QS) {
+			query, err := canonicalizeQuery(query)
+			if err != nil && err != EmptyQueryError {
+				return nil, fmt.Errorf("invalid query in %s: %v", queryFile,
+					err)
+			} else if err == nil {
+				queries = append(queries, query)
 			}
 		}
 	}
-	for _, query := range qc.Query {
-		if query, err := canonicalizeQuery(query); err != nil {
-			return nil, err
-		} else {
-			queries = append(queries, query)
-		}
-	}
-	if len(queries) == 0 {
-		return nil, errors.New("no queries provided")
-	}
-
 	return queries, nil
 }
 
-func (ij *iniJob) ToJob() (*Job, error) {
-	var job = new(Job)
-	var err error
-
-	if len(ij.Query_Log) > 0 {
-		job.QueryLog, err = os.Open(ij.Query_Log)
-		if err != nil {
-			return nil, fmt.Errorf("error opening %s: %v", ij.Query_Log, err)
-		}
-	} else {
-		job.Queries, err = ij.queryConfig.GetQueries()
-		if err != nil {
-			return nil, err
-		}
-		if len(job.Queries) > 1 && ij.queryConfig.Multi_query_mode != "multi-connection" {
-			return nil, errors.New("more than one query provided without multi-query-mode=multi-connection")
-		}
-
-		if ij.Queue_Depth > 0 {
-			job.QueueDepth = ij.Queue_Depth
-		} else if ij.Rate == 0 {
-			job.QueueDepth = 1
-		}
-
-		job.Rate = ij.Rate
-		job.Count = ij.Count
-	}
-
-	if job.Start, err = time.ParseDuration(ij.Start); err != nil && len(ij.Start) > 0 {
-		return nil, fmt.Errorf("parsing start: %v", err)
-	}
-	if job.Stop, err = time.ParseDuration(ij.Stop); err != nil && len(ij.Stop) > 0 {
-		return nil, fmt.Errorf("parsing start: %v", err)
-	}
-	if job.Stop > 0 && job.Stop < job.Start {
-		return nil, errors.New("job start must be before end")
-	}
-	return job, nil
+var globalOptions = goini.DecodeOptionSet{
+	"duration": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "When the test will stop launching new jobs, as a duration " +
+			" elapsed since setup ",
+		Parse: func(c interface{}, v string) (e error) {
+			c.(*Config).Duration, e = time.ParseDuration(v)
+			return e
+		},
+	},
 }
 
-func parseConfig(configFile string) (*Config, error) {
-	var iniConfig iniConfig
-	var config = new(Config)
-	var err error
+var setupOptions = goini.DecodeOptionSet{
+	"query": &goini.DecodeOption{Kind: goini.MultiOption,
+		Usage: "Setup query to be executed before any jobs are started. " +
+			"Must be a single query and cannot have any effect on the " +
+			"connection (e.g USE or BEGIN).",
+		Parse: func(jii interface{}, v string) (e error) {
+			ji := jii.(*JobInvocation)
+			ji.Queries = append(ji.Queries, v)
+			return nil
+		},
+	},
+	"query-file": &goini.DecodeOption{Kind: goini.MultiOption,
+		Usage: "Setup query to be executed before any jobs are started. " +
+			"Must be a single query and cannot have any effect on the " +
+			"connection (e.g USE or BEGIN).",
+		Parse: func(jii interface{}, v string) (e error) {
+			ji := jii.(*JobInvocation)
+			if qs, err := readQueriesFromFile(v); err != nil {
+				return err
+			} else {
+				ji.Queries = append(ji.Queries, qs...)
+				return nil
+			}
+		},
+	},
+}
 
-	if err = gcfg.ReadFileInto(&iniConfig, configFile); err != nil {
-		return nil, err
-	}
+var jobOptions = goini.DecodeOptionSet{
+	"start": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "When this job should start, as a duration elapsed since setup.",
+		Parse: func(j interface{}, v string) (e error) {
+			j.(*Job).Start, e = time.ParseDuration(v)
+			return e
+		},
+	},
+	"stop": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "When this job should stop, as a duration elapsed since setup.",
+		Parse: func(j interface{}, v string) (e error) {
+			j.(*Job).Start, e = time.ParseDuration(v)
+			return e
+		},
+	},
+	"query": &goini.DecodeOption{Kind: goini.MultiOption,
+		Usage: "Query to execute for the job. " +
+			"Must be a single query and cannot have any effect on the " +
+			"connection (e.g USE or BEGIN).",
+		Parse: func(j interface{}, v string) error {
+			if q, e := canonicalizeQuery(v); e != nil {
+				return e
+			} else {
+				j.(*Job).Queries = append(j.(*Job).Queries, q)
+				return nil
+			}
+		},
+	},
+	"query-file": &goini.DecodeOption{Kind: goini.MultiOption,
+		Usage: "File containing queries to execute for the job. " +
+			"Queries are separated by the query-separator and cannot have any " +
+			"effect on the connection (e.g USE or BEGIN).",
+		Parse: func(j interface{}, v string) error {
+			if qs, err := readQueriesFromFile(v); err != nil {
+				return err
+			} else {
+				j.(*Job).Queries = append(j.(*Job).Queries, qs...)
+				return nil
+			}
+		},
+	},
+	"rate": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Rate to execute the job, a floating point executions per seconds.",
+		Parse: func(ji interface{}, v string) (e error) {
+			j := ji.(*Job)
+			j.Rate, e = strconv.ParseFloat(v, 64)
+			if e != nil && j.Rate < 0 {
+				return errors.New("invalid value for rate")
+			}
+			return e
+		},
+	},
+	"queue-depth": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Number of simultaneous executions of the job allowed.",
+		Parse: func(j interface{}, v string) (e error) {
+			// Is there a way to make go respect numeric prefixes (e.g. 0x0)?
+			j.(*Job).QueueDepth, e = strconv.ParseUint(v, 10, 0)
+			return e
+		},
+	},
+	"count": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Number of time job is executed before stopping.",
+		Parse: func(j interface{}, v string) (e error) {
+			j.(*Job).Count, e = strconv.ParseUint(v, 10, 0)
+			return e
+		},
+	},
+	"multi-query-mode": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Set to 'multi-connection' to signal that the job will execute " +
+			"multiple queries, but it is safe for them to be on different " +
+			"connections.",
+		Parse: func(j interface{}, v string) error {
+			if v == "multi-connection" {
+				j.(*Job).MultiQueryAllowed = true
+				return nil
+			} else {
+				return fmt.Errorf("invalid value for multi-query-mode: %s",
+					strconv.Quote(v))
+			}
+		},
+	},
+	"query-log": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "A flat text file containing a log file to replay instead of a " +
+			"normal job. The query log format is a series of newline " +
+			"delimited records containing a time in microseconds and a query " +
+			"separated by a comma. For example, '8644882534,select 1'.",
+		Parse: func(j interface{}, v string) (e error) {
+			j.(*Job).QueryLog, e = os.Open(v)
+			return e
+		},
+	},
+}
 
-	if len(iniConfig.Global.Duration) > 0 {
-		if config.Duration, err = time.ParseDuration(iniConfig.Global.Duration); err != nil {
-			return nil, fmt.Errorf("error parsing duration: %v", err)
-		}
-	}
-	config.Setup.Queries, err = iniConfig.Setup.GetQueries()
-	if err != nil && err != NoQueryProvidedError {
-		return nil, fmt.Errorf("error parsing setup: %v", err)
-	}
-	config.Setup.Name = "setup"
-	config.Teardown.Queries, err = iniConfig.Teardown.GetQueries()
-	if err != nil && err != NoQueryProvidedError {
-		return nil, fmt.Errorf("error parsing teardown: %v", err)
-	}
-	config.Teardown.Name = "teardown"
-
+func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 	config.Jobs = make(map[string]*Job)
-	for name, iniJob := range iniConfig.Job {
-		if job, err := iniJob.ToJob(); err != nil {
-			return nil, fmt.Errorf("error parsing job %s: %v", err, name)
+	for name, section := range iniConfig.Sections() {
+		// Don't try to parse a reserved section as a job.
+		if name == "setup" || name == "teardown" || name == "global" {
+			continue
+		}
+
+		job := new(Job)
+
+		// Set defaults.
+		job.QueueDepth = 1
+
+		if err := jobOptions.Decode(job, section); err != nil {
+			return fmt.Errorf("error parsing job %s: %v",
+				strconv.Quote(name), err)
 		} else {
 			job.Name = name
 			if job.Start > config.Duration {
-				return nil, fmt.Errorf("job %s starts after test finishes", name)
+				return fmt.Errorf("job %s starts after test finishes.",
+					strconv.Quote(name))
 			} else if job.Stop > 0 && job.Stop > config.Duration {
-				return nil, fmt.Errorf("job %s finishes after test finishes", name)
+				return fmt.Errorf("job %s finishes after test finishes.",
+					strconv.Quote(name))
+			} else if len(job.Queries) > 0 && job.QueryLog != nil {
+				return fmt.Errorf(
+					"job %s cannot have both queries and a query log.",
+					strconv.Quote(name))
+			} else if len(job.Queries) > 1 && !job.MultiQueryAllowed {
+				return fmt.Errorf("job %s must have only one query.",
+					strconv.Quote(name))
 			}
+
 			config.Jobs[name] = job
 		}
 	}
+	return nil
+}
+
+func parseConfig(configFile string) (*Config, error) {
+	cp := goini.NewRawConfigParser()
+	cp.ParseFile(configFile)
+	iniConfig, err := cp.Finish()
+	if err != nil {
+		return nil, err
+	}
+
+	var config = new(Config)
+
+	if err := globalOptions.Decode(config, iniConfig.GlobalSection); err != nil {
+		return nil, fmt.Errorf("Error parsing global section: %v", err)
+	}
+	if err := setupOptions.Decode(&config.Setup, iniConfig.Sections()["setup"]); err != nil {
+		return nil, fmt.Errorf("Error parsing setup section: %v", err)
+	}
+	if err := setupOptions.Decode(&config.Teardown, iniConfig.Sections()["teardown"]); err != nil {
+		return nil, fmt.Errorf("Error parsing teardown section: %v", err)
+	}
+
+	if err := parseConfigJobs(config, iniConfig); err != nil {
+		return nil, err
+	}
+
 	return config, nil
 }

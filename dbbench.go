@@ -23,14 +23,16 @@ type Job struct {
 	Name string
 
 	Queries    []string
-	QueueDepth int
+	QueueDepth uint64
 	Rate       float64
-	Count      int
+	Count      uint64
 
 	QueryLog io.Reader
 
 	Start time.Duration
 	Stop  time.Duration
+
+	MultiQueryAllowed bool
 }
 
 type QueryLogRecord struct {

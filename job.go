@@ -59,7 +59,7 @@ func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation
 		ticker := time.NewTicker(time.Duration(float64(time.Second) / job.Rate))
 		defer ticker.Stop()
 
-		for ticks := 0; job.Count == 0 || ticks < job.Count; ticks++ {
+		for ticks := uint64(0); job.Count == 0 || ticks < job.Count; ticks++ {
 			select {
 			case <-ctx.Done():
 				return
@@ -79,7 +79,7 @@ func (job *Job) startLogQueryChannel(ctx context.Context) <-chan *JobInvocation 
 		scanner := bufio.NewScanner(job.QueryLog)
 		var lastTime int64
 
-		for linesScanned := 0; scanner.Scan() &&
+		for linesScanned := uint64(0); scanner.Scan() &&
 			(job.Count == 0 || linesScanned < job.Count); linesScanned++ {
 			line := scanner.Text()
 			parts := strings.SplitN(line, ",", 2)
@@ -120,7 +120,7 @@ func (job *Job) startQueryChannel(ctx context.Context) <-chan *JobInvocation {
 		ch := make(chan *JobInvocation)
 		go func() {
 			defer close(ch)
-			for i := 0; job.Count == 0 || i < job.Count; i++ {
+			for i := uint64(0); job.Count == 0 || i < job.Count; i++ {
 				select {
 				case <-ctx.Done():
 					return
@@ -151,7 +151,7 @@ func (job *Job) StartResultChan(ctx context.Context, db *sql.DB) <-chan *JobResu
 		}()
 
 		queueSem := make(chan interface{}, job.QueueDepth)
-		for i := 0; i < job.QueueDepth; i++ {
+		for i := uint64(0); i < job.QueueDepth; i++ {
 			queueSem <- nil
 		}
 		defer func() {
