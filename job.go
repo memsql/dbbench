@@ -18,8 +18,8 @@ package main
 
 import (
 	"bufio"
-	"code.google.com/p/go.net/context"
 	"database/sql"
+	"golang.org/x/net/context"
 	"log"
 	"strconv"
 	"strings"

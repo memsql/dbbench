@@ -17,12 +17,12 @@
 package main
 
 import (
-	"code.google.com/p/go.net/context"
 	"database/sql"
 	"flag"
 	"fmt"
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
+	"golang.org/x/net/context"
 	"io"
 	"log"
 	"os"
