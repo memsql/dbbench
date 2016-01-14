@@ -157,17 +157,26 @@ func (job *Job) runLoop(ctx context.Context, db *sql.DB, startTime time.Time, re
 		queueSem <- nil
 	}
 
+	var wg sync.WaitGroup
 	for jobInvocation := range job.startQueryChannel(ctx) {
+		wg.Add(1)
 		if job.QueueDepth > 0 {
 			<-queueSem
 		}
 		go func(ji *JobInvocation) {
-			results <- ji.Invoke(db, time.Since(startTime))
+			defer wg.Done()
+			r := ji.Invoke(db, time.Since(startTime))
 			if job.QueueDepth > 0 {
 				queueSem <- nil
 			}
+			results <- r
 		}(jobInvocation)
 	}
+
+	// Do not return until all spawned goroutines have completed. This ensures
+	// that we will not close the results chan before all spawned goroutines
+	// have completed their sends on it.
+	wg.Wait()
 }
 
 func (job *Job) Run(ctx context.Context, db *sql.DB, results chan<- *JobResult) {
