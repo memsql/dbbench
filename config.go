@@ -73,7 +73,7 @@ var globalOptions = goini.DecodeOptionSet{
 	"duration": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "When the test will stop launching new jobs, as a duration " +
 			" elapsed since setup ",
-		Parse: func(c interface{}, v string) (e error) {
+		Parse: func(v string, c interface{}) (e error) {
 			c.(*Config).Duration, e = time.ParseDuration(v)
 			return e
 		},
@@ -85,7 +85,7 @@ var setupOptions = goini.DecodeOptionSet{
 		Usage: "Setup query to be executed before any jobs are started. " +
 			"Must be a single query and cannot have any effect on the " +
 			"connection (e.g USE or BEGIN).",
-		Parse: func(jii interface{}, v string) (e error) {
+		Parse: func(v string, jii interface{}) (e error) {
 			ji := jii.(*JobInvocation)
 			ji.Queries = append(ji.Queries, v)
 			return nil
@@ -95,7 +95,7 @@ var setupOptions = goini.DecodeOptionSet{
 		Usage: "Setup query to be executed before any jobs are started. " +
 			"Must be a single query and cannot have any effect on the " +
 			"connection (e.g USE or BEGIN).",
-		Parse: func(jii interface{}, v string) (e error) {
+		Parse: func(v string, jii interface{}) (e error) {
 			ji := jii.(*JobInvocation)
 			if qs, err := readQueriesFromFile(v); err != nil {
 				return err
@@ -110,14 +110,14 @@ var setupOptions = goini.DecodeOptionSet{
 var jobOptions = goini.DecodeOptionSet{
 	"start": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "When this job should start, as a duration elapsed since setup.",
-		Parse: func(j interface{}, v string) (e error) {
+		Parse: func(v string, j interface{}) (e error) {
 			j.(*Job).Start, e = time.ParseDuration(v)
 			return e
 		},
 	},
 	"stop": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "When this job should stop, as a duration elapsed since setup.",
-		Parse: func(j interface{}, v string) (e error) {
+		Parse: func(v string, j interface{}) (e error) {
 			j.(*Job).Start, e = time.ParseDuration(v)
 			return e
 		},
@@ -126,7 +126,7 @@ var jobOptions = goini.DecodeOptionSet{
 		Usage: "Query to execute for the job. " +
 			"Must be a single query and cannot have any effect on the " +
 			"connection (e.g USE or BEGIN).",
-		Parse: func(j interface{}, v string) error {
+		Parse: func(v string, j interface{}) error {
 			if q, e := canonicalizeQuery(v); e != nil {
 				return e
 			} else {
@@ -139,7 +139,7 @@ var jobOptions = goini.DecodeOptionSet{
 		Usage: "File containing queries to execute for the job. " +
 			"Queries are separated by the query-separator and cannot have any " +
 			"effect on the connection (e.g USE or BEGIN).",
-		Parse: func(j interface{}, v string) error {
+		Parse: func(v string, j interface{}) error {
 			if qs, err := readQueriesFromFile(v); err != nil {
 				return err
 			} else {
@@ -150,18 +150,18 @@ var jobOptions = goini.DecodeOptionSet{
 	},
 	"rate": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "Rate to execute the job, a floating point executions per seconds.",
-		Parse: func(ji interface{}, v string) (e error) {
+		Parse: func(v string, ji interface{}) (e error) {
 			j := ji.(*Job)
 			j.Rate, e = strconv.ParseFloat(v, 64)
-			if e != nil && j.Rate < 0 {
-				return errors.New("invalid value for rate")
+			if e == nil && j.Rate < 0 {
+				return errors.New("invalid negative value for rate")
 			}
 			return e
 		},
 	},
 	"queue-depth": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "Number of simultaneous executions of the job allowed.",
-		Parse: func(j interface{}, v string) (e error) {
+		Parse: func(v string, j interface{}) (e error) {
 			// Is there a way to make go respect numeric prefixes (e.g. 0x0)?
 			j.(*Job).QueueDepth, e = strconv.ParseUint(v, 10, 0)
 			return e
@@ -169,7 +169,7 @@ var jobOptions = goini.DecodeOptionSet{
 	},
 	"count": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "Number of time job is executed before stopping.",
-		Parse: func(j interface{}, v string) (e error) {
+		Parse: func(v string, j interface{}) (e error) {
 			j.(*Job).Count, e = strconv.ParseUint(v, 10, 0)
 			return e
 		},
@@ -178,7 +178,7 @@ var jobOptions = goini.DecodeOptionSet{
 		Usage: "Set to 'multi-connection' to signal that the job will execute " +
 			"multiple queries, but it is safe for them to be on different " +
 			"connections.",
-		Parse: func(j interface{}, v string) error {
+		Parse: func(v string, j interface{}) error {
 			if v == "multi-connection" {
 				j.(*Job).MultiQueryAllowed = true
 				return nil
@@ -193,7 +193,7 @@ var jobOptions = goini.DecodeOptionSet{
 			"normal job. The query log format is a series of newline " +
 			"delimited records containing a time in microseconds and a query " +
 			"separated by a comma. For example, '8644882534,select 1'.",
-		Parse: func(j interface{}, v string) (e error) {
+		Parse: func(v string, j interface{}) (e error) {
 			j.(*Job).QueryLog, e = os.Open(v)
 			return e
 		},
@@ -210,7 +210,7 @@ func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 
 		job := new(Job)
 
-		if err := jobOptions.Decode(job, section); err != nil {
+		if err := jobOptions.Decode(section, job); err != nil {
 			return fmt.Errorf("error parsing job %s: %v",
 				strconv.Quote(name), err)
 		} else {
@@ -257,13 +257,13 @@ func parseConfig(configFile string) (*Config, error) {
 
 	var config = new(Config)
 
-	if err := globalOptions.Decode(config, iniConfig.GlobalSection); err != nil {
+	if err := globalOptions.Decode(iniConfig.GlobalSection, config); err != nil {
 		return nil, fmt.Errorf("Error parsing global section: %v", err)
 	}
-	if err := setupOptions.Decode(&config.Setup, iniConfig.Sections()["setup"]); err != nil {
+	if err := setupOptions.Decode(iniConfig.Sections()["setup"], &config.Setup); err != nil {
 		return nil, fmt.Errorf("Error parsing setup section: %v", err)
 	}
-	if err := setupOptions.Decode(&config.Teardown, iniConfig.Sections()["teardown"]); err != nil {
+	if err := setupOptions.Decode(iniConfig.Sections()["teardown"], &config.Teardown); err != nil {
 		return nil, fmt.Errorf("Error parsing teardown section: %v", err)
 	}
 
