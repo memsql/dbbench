@@ -22,6 +22,7 @@ import (
 	"fmt"
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	"golang.org/x/net/context"
 	"io"
 	"log"
@@ -127,7 +128,11 @@ func getDataSourceName() string {
 		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", *username,
 			*password, *host, *port, *database)
 	case "mssql":
-		return fmt.Sprintf("user id=%s;password=%s;server=%s;port=%d;database=%s", *username, *password, *host, *port, *database)
+		return fmt.Sprintf("user id=%s;password=%s;server=%s;port=%d;database=%s",
+			*username, *password, *host, *port, *database)
+	case "postgres":
+		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s",
+			*username, *password, *host, *port, *database)
 	default:
 		log.Fatalf("Invalid driver %s", *driver)
 		return ""
