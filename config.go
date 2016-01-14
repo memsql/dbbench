@@ -118,7 +118,7 @@ var jobOptions = goini.DecodeOptionSet{
 	"stop": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "When this job should stop, as a duration elapsed since setup.",
 		Parse: func(v string, j interface{}) (e error) {
-			j.(*Job).Start, e = time.ParseDuration(v)
+			j.(*Job).Stop, e = time.ParseDuration(v)
 			return e
 		},
 	},
@@ -215,10 +215,10 @@ func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 				strconv.Quote(name), err)
 		} else {
 			job.Name = name
-			if job.Start > config.Duration {
+			if config.Duration > 0 && job.Start > config.Duration {
 				return fmt.Errorf("job %s starts after test finishes.",
 					strconv.Quote(name))
-			} else if job.Stop > 0 && job.Stop > config.Duration {
+			} else if job.Stop > 0 && config.Duration > 0 && job.Stop > config.Duration {
 				return fmt.Errorf("job %s finishes after test finishes.",
 					strconv.Quote(name))
 			} else if len(job.Queries) == 0 && job.QueryLog == nil {

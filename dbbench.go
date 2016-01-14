@@ -94,13 +94,8 @@ func runTest(db *sql.DB, config *Config) {
 	if config.Duration > 0 {
 		ctx, _ = context.WithTimeout(ctx, config.Duration)
 	}
-	var resultChans = make([]<-chan *JobResult, 0, len(config.Jobs))
 
-	for _, job := range config.Jobs {
-		resultChans = append(resultChans, job.StartResultChan(ctx, db))
-	}
-
-	testStats := processResults(config, mergeJobResultChans(resultChans...))
+	testStats := processResults(config, makeJobResultChan(ctx, db, config.Jobs))
 
 	for name, stats := range testStats {
 		log.Printf("%s: %v", name, stats)

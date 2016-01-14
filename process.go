@@ -23,32 +23,8 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 )
-
-func mergeJobResultChans(chans ...<-chan *JobResult) <-chan *JobResult {
-	var wg sync.WaitGroup
-
-	outchan := make(chan *JobResult, 2*len(chans))
-
-	wg.Add(len(chans))
-	for _, ch := range chans {
-		go func(c <-chan *JobResult) {
-			for jr := range c {
-				outchan <- jr
-			}
-			wg.Done()
-		}(ch)
-	}
-
-	go func() {
-		wg.Wait()
-		close(outchan)
-	}()
-
-	return outchan
-}
 
 var queryStatsFile = flag.String("query-stats-file", "",
 	"Log query specific stats to CSV file. <job name, start micros, elapsed micros, rows affected>")

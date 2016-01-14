@@ -148,46 +148,59 @@ func (job *Job) startQueryChannel(ctx context.Context) <-chan *JobInvocation {
 	}
 }
 
-func (job *Job) StartResultChan(ctx context.Context, db *sql.DB) <-chan *JobResult {
-	testStart := time.Now()
-	results := make(chan *JobResult)
+func (job *Job) runLoop(ctx context.Context, db *sql.DB, startTime time.Time, results chan<- *JobResult) {
+	log.Printf("starting %v", job.Name)
+	defer log.Printf("stopping %v", job.Name)
+
+	queueSem := make(chan interface{}, job.QueueDepth)
+	for i := uint64(0); i < job.QueueDepth; i++ {
+		queueSem <- nil
+	}
+
+	for jobInvocation := range job.startQueryChannel(ctx) {
+		if job.QueueDepth > 0 {
+			<-queueSem
+		}
+		go func(ji *JobInvocation) {
+			results <- ji.Invoke(db, time.Since(startTime))
+			if job.QueueDepth > 0 {
+				queueSem <- nil
+			}
+		}(jobInvocation)
+	}
+}
+
+func (job *Job) Run(ctx context.Context, db *sql.DB, results chan<- *JobResult) {
+	startTime := time.Now()
 
 	if job.Stop > 0 {
 		ctx, _ = context.WithTimeout(ctx, job.Stop)
 	}
 
-	time.AfterFunc(job.Start, func() {
-		log.Printf("starting %v", job.Name)
-		defer log.Printf("stopping %v", job.Name)
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.NewTimer(job.Start).C:
+		job.runLoop(ctx, db, startTime, results)
+	}
+}
 
+func makeJobResultChan(ctx context.Context, db *sql.DB, jobs map[string]*Job) <-chan *JobResult {
+	outChan := make(chan *JobResult)
+
+	go func() {
 		var wg sync.WaitGroup
-		defer func() {
-			wg.Wait()
-			close(results)
-		}()
-
-		queueSem := make(chan interface{}, job.QueueDepth)
-		for i := uint64(0); i < job.QueueDepth; i++ {
-			queueSem <- nil
-		}
-		defer func() {
-			wg.Wait()
-			close(queueSem)
-		}()
-
-		for jobInvockation := range job.startQueryChannel(ctx) {
+		for _, job := range jobs {
 			wg.Add(1)
-			if job.QueueDepth > 0 {
-				<-queueSem
-			}
-			go func(ji *JobInvocation) {
-				results <- ji.Invoke(db, time.Since(testStart))
-				if job.QueueDepth > 0 {
-					queueSem <- nil
-				}
+			go func(j *Job) {
+				j.Run(ctx, db, outChan)
 				wg.Done()
-			}(jobInvockation)
+			}(job)
 		}
-	})
-	return results
+
+		wg.Wait()
+		close(outChan)
+	}()
+
+	return outChan
 }
