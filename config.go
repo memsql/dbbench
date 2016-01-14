@@ -210,9 +210,6 @@ func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 
 		job := new(Job)
 
-		// Set defaults.
-		job.QueueDepth = 1
-
 		if err := jobOptions.Decode(job, section); err != nil {
 			return fmt.Errorf("error parsing job %s: %v",
 				strconv.Quote(name), err)
@@ -224,6 +221,10 @@ func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 			} else if job.Stop > 0 && job.Stop > config.Duration {
 				return fmt.Errorf("job %s finishes after test finishes.",
 					strconv.Quote(name))
+			} else if len(job.Queries) == 0 && job.QueryLog == nil {
+				return fmt.Errorf(
+					"job %s does not specify either a query or a query log.",
+					strconv.Quote(name))
 			} else if len(job.Queries) > 0 && job.QueryLog != nil {
 				return fmt.Errorf(
 					"job %s cannot have both queries and a query log.",
@@ -231,6 +232,13 @@ func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 			} else if len(job.Queries) > 1 && !job.MultiQueryAllowed {
 				return fmt.Errorf("job %s must have only one query.",
 					strconv.Quote(name))
+			}
+
+			// If neither the queue depth nor the rate has been set,
+			// allow one query at a time.
+			//
+			if job.QueueDepth == 0 && job.Rate == 0 {
+				job.QueueDepth = 1
 			}
 
 			config.Jobs[name] = job
