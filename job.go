@@ -177,6 +177,7 @@ func (job *Job) runLoop(ctx context.Context, db *sql.DB, startTime time.Time, re
 	// that we will not close the results chan before all spawned goroutines
 	// have completed their sends on it.
 	wg.Wait()
+	close(queueSem)
 }
 
 func (job *Job) Run(ctx context.Context, db *sql.DB, results chan<- *JobResult) {
