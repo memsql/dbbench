@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCanonicalize(t *testing.T) {
@@ -120,12 +121,99 @@ func TestParseIniConfig(t *testing.T) {
 				},
 			},
 		},
-		{"[test1]\nquery=select 1\nrate=1",
+		{`
+			[test1]
+			query=select 1
+			rate=1
+			`,
 			&Config{
 				Jobs: map[string]*Job{
 					"test1": &Job{
 						Name: "test1", Rate: 1.0,
 						Queries: []string{"select 1"},
+					},
+				},
+			},
+		},
+		{`
+			[test job]
+			query=show databases
+			count=1
+			`,
+			&Config{
+				Jobs: map[string]*Job{
+					"test job": &Job{
+						Name: "test job", QueueDepth: 1, Count: 1,
+						Queries: []string{"show databases"},
+					},
+				},
+			},
+		},
+		{`
+			[setup]
+			query=insert into t select RAND(), RAND()
+			query=insert into t select RAND(), RAND() from t
+			query=insert into t select RAND(), RAND() from t
+
+			[teardown]
+			query=drop table t
+
+			[count]
+			query=count(*) from t where a < b
+			count=30
+			`,
+			&Config{
+				Setup: JobInvocation{
+					Queries: []string{
+						"insert into t select RAND(), RAND()",
+						"insert into t select RAND(), RAND() from t",
+						"insert into t select RAND(), RAND() from t",
+					},
+				},
+				Teardown: JobInvocation{
+					Queries: []string{
+						"drop table t",
+					},
+				},
+				Jobs: map[string]*Job{
+					"count": &Job{
+						Name: "count", QueueDepth: 1, Count: 30,
+						Queries: []string{"count(*) from t where a < b"},
+					},
+				},
+			},
+		},
+		{
+			`
+			[run 2 queries at a time for 10 seconds, starting at 5s]
+			query=select count(*) from mytable
+			queue-depth=2
+			start=5s
+			stop=15s
+			`,
+			&Config{
+				Jobs: map[string]*Job{
+					"run 2 queries at a time for 10 seconds, starting at 5s": &Job{
+						Name:       "run 2 queries at a time for 10 seconds, starting at 5s",
+						QueueDepth: 2, Start: 5 * time.Second, Stop: 15 * time.Second,
+						Queries: []string{"select count(*) from mytable"},
+					},
+				},
+			},
+		},
+		{
+			`
+			duration=10s
+
+			[test job]
+			query=select 1+1
+			`,
+			&Config{
+				Duration: 10 * time.Second,
+				Jobs: map[string]*Job{
+					"test job": &Job{
+						Name: "test job", QueueDepth: 1,
+						Queries: []string{"select 1+1"},
 					},
 				},
 			},
