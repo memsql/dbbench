@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/awreece/goini"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -51,22 +52,29 @@ func canonicalizeQuery(query string) (string, error) {
 	return query, nil
 }
 
-func readQueriesFromFile(queryFile string) ([]string, error) {
-	var queries []string
-	if contents, err := ioutil.ReadFile(queryFile); err != nil {
+func readQueriesFromReader(r io.Reader) ([]string, error) {
+	queries := make([]string, 0, 1)
+	if contents, err := ioutil.ReadAll(r); err != nil {
 		return nil, err
 	} else {
 		for _, query := range strings.Split(string(contents), *QS) {
 			query, err := canonicalizeQuery(query)
 			if err != nil && err != EmptyQueryError {
-				return nil, fmt.Errorf("invalid query in %s: %v", queryFile,
-					err)
+				return nil, fmt.Errorf("invalid query %v", err)
 			} else if err == nil {
 				queries = append(queries, query)
 			}
 		}
 	}
 	return queries, nil
+}
+
+func readQueriesFromFile(queryFile string) ([]string, error) {
+	file, err := os.Open(queryFile)
+	if err != nil {
+		return nil, err
+	}
+	return readQueriesFromReader(file)
 }
 
 var globalOptions = goini.DecodeOptionSet{
@@ -95,7 +103,7 @@ var setupOptions = goini.DecodeOptionSet{
 		Usage: "Setup query to be executed before any jobs are started. " +
 			"Must be a single query and cannot have any effect on the " +
 			"connection (e.g USE or BEGIN).",
-		Parse: func(v string, jii interface{}) (e error) {
+		Parse: func(v string, jii interface{}) error {
 			ji := jii.(*JobInvocation)
 			if qs, err := readQueriesFromFile(v); err != nil {
 				return err
@@ -247,14 +255,7 @@ func parseConfigJobs(config *Config, iniConfig *goini.RawConfig) error {
 	return nil
 }
 
-func parseConfig(configFile string) (*Config, error) {
-	cp := goini.NewRawConfigParser()
-	cp.ParseFile(configFile)
-	iniConfig, err := cp.Finish()
-	if err != nil {
-		return nil, err
-	}
-
+func parseIniConfig(iniConfig *goini.RawConfig) (*Config, error) {
 	var config = new(Config)
 
 	if err := globalOptions.Decode(iniConfig.GlobalSection, config); err != nil {
@@ -272,4 +273,15 @@ func parseConfig(configFile string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func parseConfig(configFile string) (*Config, error) {
+	cp := goini.NewRawConfigParser()
+	cp.ParseFile(configFile)
+	iniConfig, err := cp.Finish()
+	if err != nil {
+		return nil, err
+	}
+
+	return parseIniConfig(iniConfig)
 }

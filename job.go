@@ -20,12 +20,34 @@ import (
 	"bufio"
 	"database/sql"
 	"golang.org/x/net/context"
+	"io"
 	"log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+type JobInvocation struct {
+	Name    string
+	Queries []string
+}
+
+type Job struct {
+	Name string
+
+	Queries    []string
+	QueueDepth uint64
+	Rate       float64
+	Count      uint64
+
+	QueryLog io.Reader
+
+	Start time.Duration
+	Stop  time.Duration
+
+	MultiQueryAllowed bool
+}
 
 func (ji *JobInvocation) runQuery(db *sql.DB, query string) int64 {
 	var rowsAffected int64
@@ -64,6 +86,14 @@ func (ji *JobInvocation) Invoke(db *sql.DB, start time.Duration) *JobResult {
 	elapsed := stop.Sub(invokeStart)
 
 	return &JobResult{ji.Name, start, elapsed, rowsAffected}
+}
+
+func (ji *JobInvocation) String() string {
+	return quotedStruct(ji)
+}
+
+func (job *Job) String() string {
+	return quotedStruct(job)
 }
 
 func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation {

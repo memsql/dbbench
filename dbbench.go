@@ -24,33 +24,11 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	"golang.org/x/net/context"
-	"io"
 	"log"
 	"os"
 	"os/signal"
 	"time"
 )
-
-type JobInvocation struct {
-	Name    string
-	Queries []string
-}
-
-type Job struct {
-	Name string
-
-	Queries    []string
-	QueueDepth uint64
-	Rate       float64
-	Count      uint64
-
-	QueryLog io.Reader
-
-	Start time.Duration
-	Stop  time.Duration
-
-	MultiQueryAllowed bool
-}
 
 type QueryLogRecord struct {
 	Start time.Time
@@ -62,6 +40,10 @@ type Config struct {
 	Setup    JobInvocation
 	Teardown JobInvocation
 	Jobs     map[string]*Job
+}
+
+func (c *Config) String() string {
+	return quotedStruct(c)
 }
 
 type JobResult struct {
