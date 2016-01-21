@@ -29,6 +29,17 @@ import (
 	"time"
 )
 
+type Config struct {
+	Duration time.Duration
+	Setup    JobInvocation
+	Teardown JobInvocation
+	Jobs     map[string]*Job
+}
+
+func (c *Config) String() string {
+	return quotedStruct(c)
+}
+
 var NoQueryProvidedError = errors.New("no query provided")
 
 var QS = flag.String("query-separator", ";", "Separator between queries in a file.")

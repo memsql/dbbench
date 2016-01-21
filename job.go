@@ -49,6 +49,13 @@ type Job struct {
 	MultiQueryAllowed bool
 }
 
+type JobResult struct {
+	Name         string
+	Start        time.Duration
+	Elapsed      time.Duration
+	RowsAffected int64
+}
+
 func (ji *JobInvocation) runQuery(db *sql.DB, query string) int64 {
 	var rowsAffected int64
 	switch strings.ToLower(strings.Fields(query)[0]) {

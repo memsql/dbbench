@@ -27,31 +27,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"time"
 )
-
-type QueryLogRecord struct {
-	Start time.Time
-	Query string
-}
-
-type Config struct {
-	Duration time.Duration
-	Setup    JobInvocation
-	Teardown JobInvocation
-	Jobs     map[string]*Job
-}
-
-func (c *Config) String() string {
-	return quotedStruct(c)
-}
-
-type JobResult struct {
-	Name         string
-	Start        time.Duration
-	Elapsed      time.Duration
-	RowsAffected int64
-}
 
 func cancelOnInterrupt(cancel context.CancelFunc) {
 	c := make(chan os.Signal, 1)
