@@ -1,23 +1,18 @@
 # dbbench
 
-`dbbench` is a tool designed to do one simple task: _to run a workload against
-a database_ and (optionally) record statistics for post processing.
-
-`dbbench` does *not*:
-
-  - measure the performance of related different queries
-  - randomly generate queries, data, etc.
-  - do analysis on the data collected
-  - etc.
-
-Using this tool, simple 'jobs' can be defined to describe a workload run
+`dbbench` is a fast, lightweight database workload generator that executes a
+workload defined a flexible configuration file. Using this `dbbench`, simple
+'jobs' can be defined to describe a workload run
 against a server. Each job represents a single query; by composing multiple
-jobs together, an arbitrary workload can be described.
-
-The jobs are executed against the server and timed to produce
+jobs together, an arbitrary workload can be described. The jobs are executed
+against the server and timed to produce
 aggregated benchmarking information that is emitted periodically and when the
 test completes. Exact job run data can also be logged for additional offline
 analysis.
+
+Note that since `dbbench` is a workload driver, it does *not* randomly generate
+queries, tables, data, etc. Any random data generation or setup can be easily
+done with SQL queries.
 
 ## Getting started
 
@@ -151,7 +146,7 @@ count=30
 NOTE: since go uses connection pooling, it is unsafe to set
 session variables in the setup script if it is possible for
 more than one query to execute simultaneously during the workload
-phase (e.g. if multiple jobs are specified, or if `rate` or 
+phase (e.g. if multiple jobs are specified, or if `rate` or
 `queue-depth` parameters are used) since it is impossible to
 guarantee that the same job will re-use the same connection.
 
@@ -175,4 +170,6 @@ query=select 1+1
 was written by Alex Reece <awreece@gmail.com> (Performance Engineer at MemSQL)
 to enable flexible testing of a database. He got tired of writing specific test
 applications to simulate a given workload, and found that the existing database
-benchmark/test tools out there weren't flexible enough to do what he wanted.
+benchmark/test tools out there weren't flexible enough to do what he wanted. For more
+context about the ethos of `dbbench`, see the
+[blog post](http://blog.memsql.com/dbbench-active-benchmarking/) that introduced it.
