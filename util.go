@@ -23,6 +23,22 @@ import (
 	"strconv"
 )
 
+func firstString(c, d string) string {
+	if c != "" {
+		return c
+	} else {
+		return d
+	}
+}
+
+func firstInt(c, d int) int {
+	if c != 0 {
+		return c
+	} else {
+		return d
+	}
+}
+
 func quotedValue(i interface{}) string {
 	switch v := i.(type) {
 	default:

@@ -17,7 +17,6 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	_ "github.com/denisenkom/go-mssqldb"
@@ -40,7 +39,7 @@ func cancelOnInterrupt(cancel context.CancelFunc) {
 	}()
 }
 
-func runTest(db *sql.DB, config *Config) {
+func runTest(db Database, config *Config) {
 	if len(config.Setup.Queries) > 0 {
 		log.Printf("Performing setup")
 		config.Setup.Invoke(db, 0)
@@ -65,31 +64,23 @@ func runTest(db *sql.DB, config *Config) {
 	}
 }
 
-var driver = flag.String("driver", "mysql", "Database driver to use.")
-var username = flag.String("username", "root", "Database connection username")
-var password = flag.String("password", "", "Database connection password")
-var host = flag.String("host", "localhost", "Database connection host")
-var port = flag.Int("port", 3306, "Database connection port")
-var database = flag.String("database", "", "Database to use.")
-var maxIdleConns = flag.Int("max-idle-conns", 100, "Maximum idle database connections")
-var maxActiveConns = flag.Int("max-active-conns", 0, "Maximum active database connections")
+var driverName = flag.String("driver", "mysql", "Database driver to use.")
+
 var printVersion = flag.Bool("version", false, "Print the version and quit")
 
-func getDataSourceName() string {
-	switch *driver {
-	case "mysql":
-		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", *username,
-			*password, *host, *port, *database)
-	case "mssql":
-		return fmt.Sprintf("user id=%s;password=%s;server=%s;port=%d;database=%s",
-			*username, *password, *host, *port, *database)
-	case "postgres":
-		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s",
-			*username, *password, *host, *port, *database)
-	default:
-		log.Fatalf("Invalid driver %s", *driver)
-		return ""
-	}
+var GlobalConfig ConnectionConfig
+
+func init() {
+	flag.StringVar(&GlobalConfig.Username, "username", "",
+		"Database connection username")
+	flag.StringVar(&GlobalConfig.Password, "password", "",
+		"Database connection password")
+	flag.StringVar(&GlobalConfig.Host, "host", "",
+		"Database connection host")
+	flag.IntVar(&GlobalConfig.Port, "port", 0,
+		"Database connection port")
+	flag.StringVar(&GlobalConfig.Database, "database", "",
+		"Database connection database")
 }
 
 func main() {
@@ -109,34 +100,20 @@ func main() {
 		log.Fatal("No config file to parse")
 	}
 
-	dsn := getDataSourceName()
-	log.Println("Connecting to", dsn)
+	flavor, ok := supportedDatabaseFlavors[*driverName]
+	if !ok {
+		log.Fatalf("Database flavor %s not supportd", *driverName)
+	}
 
-	db, err := sql.Open(*driver, dsn)
+	config, err := parseConfig(flavor, flag.Arg(0))
 	if err != nil {
-		log.Fatal(err)
-	}
-	if err = db.Ping(); err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-	log.Println("Connected")
-
-	/*
-	 * Go very aggressively recycles connections; inform the runtime
-	 * to hold onto some idle connections.
-	 */
-	db.SetMaxIdleConns(*maxIdleConns)
-
-	/*
-	 * This can lead to deadlocks in go version <= 1.2:
-	 * https://code.google.com/p/go/source/detail?r=8a7ac002f840
-	 */
-	db.SetMaxOpenConns(*maxIdleConns)
-
-	if config, err := parseConfig(flag.Arg(0)); err != nil {
 		log.Fatalf("parsing config file %v", err)
+	}
+
+	if db, err := flavor.Connect(&GlobalConfig); err != nil {
+		log.Fatal("Error connecting to the database: ", err)
 	} else {
+		defer db.Close()
 		runTest(db, config)
 	}
 }

@@ -18,7 +18,6 @@ package main
 
 import (
 	"bufio"
-	"database/sql"
 	"golang.org/x/net/context"
 	"io"
 	"log"
@@ -45,8 +44,6 @@ type Job struct {
 
 	Start time.Duration
 	Stop  time.Duration
-
-	MultiQueryAllowed bool
 }
 
 type JobResult struct {
@@ -56,37 +53,17 @@ type JobResult struct {
 	RowsAffected int64
 }
 
-func (ji *JobInvocation) runQuery(db *sql.DB, query string) int64 {
-	var rowsAffected int64
-	switch strings.ToLower(strings.Fields(query)[0]) {
-	case "select", "show", "explain", "describe", "desc":
-		rows, err := db.Query(query)
-		if err != nil {
-			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			rowsAffected++
-		}
-		if err = rows.Err(); err != nil {
-			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
-		}
-	default:
-		res, err := db.Exec(query)
-		if err != nil {
-			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
-		}
-		rowsAffected, _ = res.RowsAffected()
-	}
-	return rowsAffected
-}
-
-func (ji *JobInvocation) Invoke(db *sql.DB, start time.Duration) *JobResult {
+func (ji *JobInvocation) Invoke(db Database, start time.Duration) *JobResult {
 	invokeStart := time.Now()
 	var rowsAffected int64
 
 	for _, query := range ji.Queries {
-		rowsAffected += ji.runQuery(db, query)
+		rows, err := db.RunQuery(query)
+		if err != nil {
+			// TODO(awreece) Avoid log.Fatal.
+			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
+		}
+		rowsAffected += rows
 	}
 
 	stop := time.Now()
@@ -185,7 +162,7 @@ func (job *Job) startQueryChannel(ctx context.Context) <-chan *JobInvocation {
 	}
 }
 
-func (job *Job) runLoop(ctx context.Context, db *sql.DB, startTime time.Time, results chan<- *JobResult) {
+func (job *Job) runLoop(ctx context.Context, db Database, startTime time.Time, results chan<- *JobResult) {
 	log.Printf("starting %v", job.Name)
 	defer log.Printf("stopping %v", job.Name)
 
@@ -217,7 +194,7 @@ func (job *Job) runLoop(ctx context.Context, db *sql.DB, startTime time.Time, re
 	close(queueSem)
 }
 
-func (job *Job) Run(ctx context.Context, db *sql.DB, results chan<- *JobResult) {
+func (job *Job) Run(ctx context.Context, db Database, results chan<- *JobResult) {
 	startTime := time.Now()
 
 	if job.Stop > 0 {
@@ -232,7 +209,7 @@ func (job *Job) Run(ctx context.Context, db *sql.DB, results chan<- *JobResult) 
 	}
 }
 
-func makeJobResultChan(ctx context.Context, db *sql.DB, jobs map[string]*Job) <-chan *JobResult {
+func makeJobResultChan(ctx context.Context, db Database, jobs map[string]*Job) <-chan *JobResult {
 	outChan := make(chan *JobResult)
 
 	go func() {
