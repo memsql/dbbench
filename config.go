@@ -173,13 +173,20 @@ var jobOptions = goini.DecodeOptionSet{
 		},
 	},
 	"rate": &goini.DecodeOption{Kind: goini.UniqueOption,
-		Usage: "Rate to execute the job, a floating point executions per seconds.",
+		Usage: "The number of batches executed per second (default 0.0).",
 		Parse: func(v string, jpi interface{}) (e error) {
 			jp := jpi.(*jobParser)
 			jp.j.Rate, e = strconv.ParseFloat(v, 64)
 			if e == nil && jp.j.Rate < 0 {
 				return errors.New("invalid negative value for rate")
 			}
+			return e
+		},
+	},
+	"batch-size": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Number of jobs started during one batch (default 1).",
+		Parse: func(v string, jp interface{}) (e error) {
+			jp.(*jobParser).j.BatchSize, e = strconv.ParseUint(v, 10, 0)
 			return e
 		},
 	},
@@ -235,6 +242,8 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) err
 		return errors.New("cannot have both queries and a query log")
 	} else if len(job.Queries) > 1 && !jp.multiQueryAllowed {
 		return fmt.Errorf("must have only one query")
+	} else if job.Rate == 0 && job.BatchSize > 0 {
+		return errors.New("can only specify batch-size with rate")
 	}
 
 	// If neither the queue depth nor the rate has been set,
@@ -242,6 +251,10 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) err
 	//
 	if job.QueueDepth == 0 && job.Rate == 0 {
 		job.QueueDepth = 1
+	}
+
+	if job.Rate > 0 && job.BatchSize == 0 {
+		job.BatchSize = 1
 	}
 
 	return nil

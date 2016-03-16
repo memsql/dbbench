@@ -39,6 +39,7 @@ type Job struct {
 	QueueDepth uint64
 	Rate       float64
 	Count      uint64
+	BatchSize  uint64
 
 	QueryLog io.Reader
 
@@ -94,7 +95,9 @@ func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				ch <- ji
+				for bi := uint64(0); bi < job.BatchSize; bi++ {
+					ch <- ji
+				}
 			}
 		}
 	}()
