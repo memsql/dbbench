@@ -103,7 +103,12 @@ func (sq *sqlDatabaseFlavor) Connect(cc *ConnectionConfig) (Database, error) {
 
 	/*
 	 * This can lead to deadlocks in go version <= 1.2:
-	 * https://code.google.com/p/go/source/detail?r=8a7ac002f840
+	 *
+	 *     commit 0d12e24ebb037202c3324c230e075f1e448f6f34
+	 *     Author: Marko Tiikkaja <marko@joh.to>
+	 *     Date:   Thu Dec 26 11:27:18 2013 -0800
+	 *
+	 *         database/sql: Use all connections in pool
 	 */
 	db.SetMaxOpenConns(*maxIdleConns)
 
