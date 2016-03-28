@@ -138,7 +138,7 @@ func checkSQLQuery(q string) error {
 }
 
 func mySQLDataSourceName(cc *ConnectionConfig) string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?allowAllFiles=true",
 		firstString(cc.Username, "root"),
 		firstString(cc.Password, ""),
 		firstString(cc.Host, "localhost"),
