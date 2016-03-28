@@ -61,8 +61,8 @@ func (ss *StreamingSample) Histogram(nBuckets int) (buckets []int, minV float64,
 		panic("Cannot compute histogram with <=0 buckets.")
 	}
 
-	minV = min(ss.samples)
-	maxV = max(ss.samples)
+	minV = minf(ss.samples)
+	maxV = maxf(ss.samples)
 	diff := maxV - minV
 	buckets = make([]int, nBuckets)
 	for _, v := range ss.samples {
