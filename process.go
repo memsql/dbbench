@@ -91,7 +91,7 @@ func (js *JobStats) Histogram() string {
 	maxCount := maxi(buckets)
 
 	if extra > 0 {
-		buf.WriteString(fmt.Sprint("WARNING:", extra, "points omitted"))
+		buf.WriteString(fmt.Sprintln("WARNING:", extra, "points omitted"))
 	}
 	for bi, count := range buckets {
 		bucketBottom := float64(bi)*diff + min
