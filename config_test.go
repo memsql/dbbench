@@ -89,7 +89,8 @@ func TestParseIniConfig(t *testing.T) {
 				Jobs: map[string]*Job{
 					"test1": &Job{
 						Name: "test1", Rate: 1.0,
-						Queries: []string{"select 1"},
+						Queries:   []string{"select 1"},
+						BatchSize: 1,
 					},
 				},
 			},
