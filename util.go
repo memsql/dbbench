@@ -94,3 +94,23 @@ func quotedStruct(s interface{}) string {
 
 	return buf.String()
 }
+
+func min(vals []float64) float64 {
+	m := vals[0]
+	for _, v := range vals[1:] {
+		if v < m {
+			m = v
+		}
+	}
+	return m
+}
+
+func max(vals []float64) float64 {
+	m := vals[0]
+	for _, v := range vals[1:] {
+		if v > m {
+			m = v
+		}
+	}
+	return m
+}

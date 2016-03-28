@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -39,6 +40,49 @@ func TestNormInverseCDF(t *testing.T) {
 	} {
 		assertNear(t, testCase.z, NormInverseCDF(testCase.p),
 			fmt.Sprint("For", testCase.p))
+	}
+}
+
+func TestStreamingSample(t *testing.T) {
+	type testcase struct {
+		vals        []float64
+		bucketCount int
+
+		min     float64
+		max     float64
+		buckets []int
+	}
+
+	for _, testCase := range []testcase{
+		{[]float64{1, 2}, 1, 1, 2, []int{2}},
+		{[]float64{1, 2, 2, 3}, 3, 1, 3, []int{1, 2, 1}},
+	} {
+		var ss StreamingSample
+		for _, v := range testCase.vals {
+			ss.Add(v)
+		}
+		t.Logf("Testing %f", testCase.vals)
+
+		if ss.Count() != len(testCase.vals) {
+			t.Error("For count expected", len(testCase.vals),
+				"but got got", ss.Count())
+		}
+
+		buckets, min, max, _ := ss.Histogram(testCase.bucketCount)
+		if !reflect.DeepEqual(testCase.buckets, buckets) {
+			t.Errorf("For buckets\n\texpected %d\n\tbut got %d",
+				testCase.buckets, buckets)
+		}
+
+		if min != testCase.min {
+			t.Errorf("For min\n\texpected %f\n\tbut got %f",
+				testCase.min, min)
+		}
+
+		if max != testCase.max {
+			t.Errorf("For max\n\texpected %f\n\tbut got %f",
+				testCase.max, max)
+		}
 	}
 }
 

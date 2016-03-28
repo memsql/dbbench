@@ -17,8 +17,59 @@
 package main
 
 import (
+	"flag"
 	"math"
+	"math/rand"
 )
+
+var maxSampleCount = flag.Int64("max-sample-count", 10000, "Samples to keep when streaming.")
+
+type StreamingSample struct {
+	count   int
+	samples []float64
+}
+
+func (ss *StreamingSample) Add(x float64) {
+	if ss.count == 0 {
+		ss.samples = make([]float64, 0, *maxSampleCount)
+	}
+
+	if ss.count < cap(ss.samples) {
+		ss.samples = append(ss.samples, x)
+	} else {
+		index := int(rand.Int31n(int32(ss.count + 1)))
+		if index < cap(ss.samples) {
+			ss.samples[index] = x
+		}
+	}
+	ss.count += 1
+}
+
+func (ss *StreamingSample) Count() int {
+	return ss.count
+}
+
+func (ss *StreamingSample) Samples() []float64 {
+	return ss.samples
+}
+
+func (ss *StreamingSample) Histogram(nBuckets int) (buckets []int, minV float64, maxV float64, extra int) {
+	if ss.count == 0 {
+		panic("Cannot compute histogram of empty sample.")
+	}
+	if nBuckets <= 0 {
+		panic("Cannot compute histogram with <=0 buckets.")
+	}
+
+	minV = min(ss.samples)
+	maxV = max(ss.samples)
+	diff := maxV - minV
+	buckets = make([]int, nBuckets)
+	for _, v := range ss.samples {
+		buckets[int((v-minV)/diff*float64(nBuckets-1))]++
+	}
+	return buckets, minV, maxV, ss.count - len(ss.samples)
+}
 
 /*
  * Use Welfords Method to compute variance in a stream.
