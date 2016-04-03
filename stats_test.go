@@ -54,6 +54,8 @@ func TestStreamingSample(t *testing.T) {
 	}
 
 	for _, testCase := range []testcase{
+		{[]float64{1}, 1, 1, 1, []int{1}},
+		{[]float64{1}, 3, 1, 1, []int{1}},
 		{[]float64{1, 2}, 1, 1, 2, []int{2}},
 		{[]float64{1, 2, 2, 3}, 3, 1, 3, []int{1, 2, 1}},
 	} {

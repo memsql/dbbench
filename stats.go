@@ -53,21 +53,28 @@ func (ss *StreamingSample) Samples() []float64 {
 	return ss.samples
 }
 
-func (ss *StreamingSample) Histogram(nBuckets int) (buckets []int, minV float64, maxV float64, extra int) {
+func (ss *StreamingSample) Histogram(nBucketsMax int) (buckets []int, minV float64, maxV float64, extra int) {
 	if ss.count == 0 {
 		panic("Cannot compute histogram of empty sample.")
 	}
-	if nBuckets <= 0 {
+	if nBucketsMax <= 0 {
 		panic("Cannot compute histogram with <=0 buckets.")
 	}
 
 	minV = minf(ss.samples)
 	maxV = maxf(ss.samples)
 	diff := maxV - minV
-	buckets = make([]int, nBuckets)
-	for _, v := range ss.samples {
-		buckets[int((v-minV)/diff*float64(nBuckets-1))]++
+
+	if diff > 0.0 {
+		buckets = make([]int, nBucketsMax)
+		for _, v := range ss.samples {
+			buckets[int((v-minV)/diff*float64(nBucketsMax-1))]++
+		}
+	} else {
+		buckets = make([]int, 1)
+		buckets[0] = len(ss.samples)
 	}
+
 	return buckets, minV, maxV, ss.count - len(ss.samples)
 }
 
