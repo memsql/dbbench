@@ -34,7 +34,7 @@ func (s *sqlDb) RunQuery(q string) (int64, error) {
 	case "select", "show", "explain", "describe", "desc":
 		return s.countQueryRows(q)
 	case "use", "begin":
-		return 0, fmt.Errorf("invalid query action: ", action)
+		return 0, fmt.Errorf("invalid query action: %v", action)
 	default:
 		return s.countExecRows(q)
 	}
