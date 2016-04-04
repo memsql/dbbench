@@ -29,19 +29,19 @@ type sqlDb struct {
 	db *sql.DB
 }
 
-func (s *sqlDb) RunQuery(q string) (int64, error) {
+func (s *sqlDb) RunQuery(q string, args []interface{}) (int64, error) {
 	switch action := strings.ToLower(strings.Fields(q)[0]); action {
 	case "select", "show", "explain", "describe", "desc":
-		return s.countQueryRows(q)
+		return s.countQueryRows(q, args)
 	case "use", "begin":
 		return 0, fmt.Errorf("invalid query action: %v", action)
 	default:
-		return s.countExecRows(q)
+		return s.countExecRows(q, args)
 	}
 }
 
-func (s *sqlDb) countQueryRows(q string) (int64, error) {
-	rows, err := s.db.Query(q)
+func (s *sqlDb) countQueryRows(q string, args []interface{}) (int64, error) {
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -57,8 +57,8 @@ func (s *sqlDb) countQueryRows(q string) (int64, error) {
 	return rowsAffected, nil
 }
 
-func (s *sqlDb) countExecRows(q string) (int64, error) {
-	res, err := s.db.Exec(q)
+func (s *sqlDb) countExecRows(q string, args []interface{}) (int64, error) {
+	res, err := s.db.Exec(q, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -138,7 +138,7 @@ func checkSQLQuery(q string) error {
 }
 
 func mySQLDataSourceName(cc *ConnectionConfig) string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?allowAllFiles=true",
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?allowAllFiles=true&interpolateParams=true",
 		firstString(cc.Username, "root"),
 		firstString(cc.Password, ""),
 		firstString(cc.Host, "localhost"),

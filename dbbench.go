@@ -40,9 +40,11 @@ func cancelOnInterrupt(cancel context.CancelFunc) {
 }
 
 func runTest(db Database, config *Config) {
-	if len(config.Setup.Queries) > 0 {
+	if len(config.Setup) > 0 {
 		log.Printf("Performing setup")
-		config.Setup.Invoke(db, 0)
+		for _, query := range config.Setup {
+			db.RunQuery(query, nil)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -58,9 +60,11 @@ func runTest(db Database, config *Config) {
 		log.Printf("%s: %v", name, stats)
 	}
 
-	if len(config.Teardown.Queries) > 0 {
+	if len(config.Teardown) > 0 {
 		log.Printf("Performing teardown")
-		config.Teardown.Invoke(db, 0)
+		for _, query := range config.Teardown {
+			db.RunQuery(query, nil)
+		}
 	}
 }
 

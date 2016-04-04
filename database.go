@@ -75,7 +75,7 @@ type Database interface {
 	 * so that it is safe to call RunQuery from arbitrarily many
 	 * goroutines without blocking.
 	 */
-	RunQuery(query string) (int64, error)
+	RunQuery(query string, args []interface{}) (int64, error)
 
 	/*
 	 * Close the database, reclaiming any resources.

@@ -123,17 +123,13 @@ func TestParseIniConfig(t *testing.T) {
 			count=30
 			`,
 			&Config{
-				Setup: JobInvocation{
-					Queries: []string{
-						"insert into t select RAND(), RAND()",
-						"insert into t select RAND(), RAND() from t",
-						"insert into t select RAND(), RAND() from t",
-					},
+				Setup: []string{
+					"insert into t select RAND(), RAND()",
+					"insert into t select RAND(), RAND() from t",
+					"insert into t select RAND(), RAND() from t",
 				},
-				Teardown: JobInvocation{
-					Queries: []string{
-						"drop table t",
-					},
+				Teardown: []string{
+					"drop table t",
 				},
 				Jobs: map[string]*Job{
 					"count": &Job{

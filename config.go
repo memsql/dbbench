@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"github.com/awreece/goini"
@@ -30,8 +31,8 @@ import (
 
 type Config struct {
 	Duration time.Duration
-	Setup    JobInvocation
-	Teardown JobInvocation
+	Setup    []string
+	Teardown []string
 	Jobs     map[string]*Job
 }
 
@@ -85,8 +86,8 @@ func decodeGlobalSection(df DatabaseFlavor, s goini.RawSection, c *Config) error
 }
 
 type setupSectionParser struct {
-	ji *JobInvocation
-	df DatabaseFlavor
+	queries []string
+	df      DatabaseFlavor
 }
 
 var setupOptions = goini.DecodeOptionSet{
@@ -99,7 +100,7 @@ var setupOptions = goini.DecodeOptionSet{
 			if e := ssp.df.CheckQuery(v); e != nil {
 				return e
 			}
-			ssp.ji.Queries = append(ssp.ji.Queries, v)
+			ssp.queries = append(ssp.queries, v)
 			return nil
 		},
 	},
@@ -112,15 +113,20 @@ var setupOptions = goini.DecodeOptionSet{
 			if qs, err := readQueriesFromFile(ssp.df, v); err != nil {
 				return err
 			} else {
-				ssp.ji.Queries = append(ssp.ji.Queries, qs...)
+				ssp.queries = append(ssp.queries, qs...)
 				return nil
 			}
 		},
 	},
 }
 
-func decodeSetupSection(df DatabaseFlavor, s goini.RawSection, ji *JobInvocation) error {
-	return setupOptions.Decode(s, &setupSectionParser{ji, df})
+func decodeSetupSection(df DatabaseFlavor, s goini.RawSection, ss *[]string) error {
+	parser := setupSectionParser{*ss, df}
+	err := setupOptions.Decode(s, &parser)
+	if err == nil {
+		*ss = parser.queries
+	}
+	return err
 }
 
 type jobParser struct {
@@ -172,6 +178,19 @@ var jobOptions = goini.DecodeOptionSet{
 			}
 		},
 	},
+	"query-args-file": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "File(s) containing csv delimited query args, one line per " +
+			"query.",
+		Parse: func(v string, jpi interface{}) error {
+			jp := jpi.(*jobParser)
+			if file, err := os.Open(v); err != nil {
+				return err
+			} else {
+				jp.j.QueryArgs = csv.NewReader(file)
+				return nil
+			}
+		},
+	},
 	"rate": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "The number of batches executed per second (default 0.0).",
 		Parse: func(v string, jpi interface{}) (e error) {
@@ -191,6 +210,14 @@ var jobOptions = goini.DecodeOptionSet{
 		},
 	},
 	"queue-depth": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Number of simultaneous executions of the job allowed.",
+		Parse: func(v string, jp interface{}) (e error) {
+			// Is there a way to make go respect numeric prefixes (e.g. 0x0)?
+			jp.(*jobParser).j.QueueDepth, e = strconv.ParseUint(v, 10, 0)
+			return e
+		},
+	},
+	"concurrency": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "Number of simultaneous executions of the job allowed.",
 		Parse: func(v string, jp interface{}) (e error) {
 			// Is there a way to make go respect numeric prefixes (e.g. 0x0)?

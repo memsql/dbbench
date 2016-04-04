@@ -18,6 +18,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"golang.org/x/net/context"
 	"io"
 	"log"
@@ -27,21 +28,27 @@ import (
 	"time"
 )
 
-type JobInvocation struct {
-	Name    string
-	Queries []string
+type queryInvocation struct {
+	query string
+	args  []interface{}
+}
+
+type jobInvocation struct {
+	name    string
+	queries []queryInvocation
 }
 
 type Job struct {
-	Name string
+	Name    string
+	Queries []string
 
-	Queries    []string
 	QueueDepth uint64
 	Rate       float64
 	Count      uint64
 	BatchSize  uint64
 
-	QueryLog io.Reader
+	QueryLog  io.Reader
+	QueryArgs *csv.Reader
 
 	Start time.Duration
 	Stop  time.Duration
@@ -54,15 +61,15 @@ type JobResult struct {
 	RowsAffected int64
 }
 
-func (ji *JobInvocation) Invoke(db Database, start time.Duration) *JobResult {
+func (ji *jobInvocation) Invoke(db Database, start time.Duration) *JobResult {
 	invokeStart := time.Now()
 	var rowsAffected int64
 
-	for _, query := range ji.Queries {
-		rows, err := db.RunQuery(query)
+	for _, qi := range ji.queries {
+		rows, err := db.RunQuery(qi.query, qi.args)
 		if err != nil {
 			// TODO(awreece) Avoid log.Fatal.
-			log.Fatalf("error for query %s in %s: %v", query, ji.Name, err)
+			log.Fatalf("error for query %s in %s: %v", qi.query, ji.name, err)
 		}
 		rowsAffected += rows
 	}
@@ -70,10 +77,10 @@ func (ji *JobInvocation) Invoke(db Database, start time.Duration) *JobResult {
 	stop := time.Now()
 	elapsed := stop.Sub(invokeStart)
 
-	return &JobResult{ji.Name, start, elapsed, rowsAffected}
+	return &JobResult{ji.name, start, elapsed, rowsAffected}
 }
 
-func (ji *JobInvocation) String() string {
+func (ji *jobInvocation) String() string {
 	return quotedStruct(ji)
 }
 
@@ -81,9 +88,41 @@ func (job *Job) String() string {
 	return quotedStruct(job)
 }
 
-func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation {
-	ji := &JobInvocation{job.Name, job.Queries}
-	ch := make(chan *JobInvocation)
+func (job *Job) getNextQueryArgs() ([]interface{}, error) {
+	if job.QueryArgs == nil {
+		return nil, nil
+	}
+
+	textArgs, err := job.QueryArgs.Read()
+	if err != nil {
+		if err != io.EOF {
+			// TODO(awreece) Avoid log.Fatal.
+			log.Fatalf("error parsing arg file for job %s: %v", job.Name, err)
+		}
+		return nil, err
+	}
+
+	iargs := make([]interface{}, 0, len(textArgs))
+	for _, arg := range textArgs {
+		iargs = append(iargs, arg)
+	}
+	return iargs, nil
+}
+
+func (job *Job) getNextJobInvocation() (*jobInvocation, error) {
+	queryInvocations := make([]queryInvocation, 0, len(job.Queries))
+	for _, query := range job.Queries {
+		args, err := job.getNextQueryArgs()
+		if err != nil {
+			return nil, err
+		}
+		queryInvocations = append(queryInvocations, queryInvocation{query, args})
+	}
+	return &jobInvocation{job.Name, queryInvocations}, nil
+}
+
+func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *jobInvocation {
+	ch := make(chan *jobInvocation)
 	go func() {
 		defer close(ch)
 
@@ -91,6 +130,10 @@ func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation
 		defer ticker.Stop()
 
 		for ticks := uint64(0); job.Count == 0 || ticks < job.Count; ticks++ {
+			ji, err := job.getNextJobInvocation()
+			if err != nil {
+				return
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -104,8 +147,8 @@ func (job *Job) startTickQueryChannel(ctx context.Context) <-chan *JobInvocation
 	return ch
 }
 
-func (job *Job) startLogQueryChannel(ctx context.Context) <-chan *JobInvocation {
-	ch := make(chan *JobInvocation)
+func (job *Job) startLogQueryChannel(ctx context.Context) <-chan *jobInvocation {
+	ch := make(chan *jobInvocation)
 	go func() {
 		defer close(ch)
 
@@ -135,7 +178,7 @@ func (job *Job) startLogQueryChannel(ctx context.Context) <-chan *JobInvocation 
 					return
 				case <-time.NewTimer(timeToSleep).C:
 					// TODO(awreece) Support multi statement log files.
-					ch <- &JobInvocation{job.Name, []string{parts[1]}}
+					ch <- &jobInvocation{job.Name, []queryInvocation{{parts[1], nil}}}
 				}
 			}
 		}
@@ -143,17 +186,20 @@ func (job *Job) startLogQueryChannel(ctx context.Context) <-chan *JobInvocation 
 	return ch
 }
 
-func (job *Job) startQueryChannel(ctx context.Context) <-chan *JobInvocation {
+func (job *Job) startQueryChannel(ctx context.Context) <-chan *jobInvocation {
 	if job.Rate > 0 {
 		return job.startTickQueryChannel(ctx)
 	} else if job.QueryLog != nil {
 		return job.startLogQueryChannel(ctx)
 	} else {
-		ji := &JobInvocation{job.Name, job.Queries}
-		ch := make(chan *JobInvocation)
+		ch := make(chan *jobInvocation)
 		go func() {
 			defer close(ch)
 			for i := uint64(0); job.Count == 0 || i < job.Count; i++ {
+				ji, err := job.getNextJobInvocation()
+				if err != nil {
+					return
+				}
 				select {
 				case <-ctx.Done():
 					return
@@ -175,19 +221,19 @@ func (job *Job) runLoop(ctx context.Context, db Database, startTime time.Time, r
 	}
 
 	var wg sync.WaitGroup
-	for jobInvocation := range job.startQueryChannel(ctx) {
+	for ji := range job.startQueryChannel(ctx) {
 		wg.Add(1)
 		if job.QueueDepth > 0 {
 			<-queueSem
 		}
-		go func(ji *JobInvocation) {
+		go func(_ji *jobInvocation) {
 			defer wg.Done()
-			r := ji.Invoke(db, time.Since(startTime))
+			r := _ji.Invoke(db, time.Since(startTime))
 			if job.QueueDepth > 0 {
 				queueSem <- nil
 			}
 			results <- r
-		}(jobInvocation)
+		}(ji)
 	}
 
 	// Do not return until all spawned goroutines have completed. This ensures
