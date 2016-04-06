@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Config struct {
@@ -132,6 +133,8 @@ func decodeSetupSection(df DatabaseFlavor, s goini.RawSection, ss *[]string) err
 type jobParser struct {
 	j                 *Job
 	df                DatabaseFlavor
+	queryArgsFile     io.Reader
+	queryArgsDelim    rune
 	multiQueryAllowed bool
 }
 
@@ -179,14 +182,24 @@ var jobOptions = goini.DecodeOptionSet{
 		},
 	},
 	"query-args-file": &goini.DecodeOption{Kind: goini.UniqueOption,
-		Usage: "File(s) containing csv delimited query args, one line per " +
+		Usage: "File containing csv delimited query args, one line per " +
 			"query.",
+		Parse: func(v string, jpi interface{}) (err error) {
+			jp := jpi.(*jobParser)
+			jp.queryArgsFile, err = os.Open(v)
+			return err
+		},
+	},
+	"query-args-delim": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Field separator for csv delimited query args.",
 		Parse: func(v string, jpi interface{}) error {
 			jp := jpi.(*jobParser)
-			if file, err := os.Open(v); err != nil {
+			if s, err := strconv.Unquote(v); err != nil {
 				return err
+			} else if len(s) != 1 {
+				return errors.New("Must provide exactly one character for delimiter")
 			} else {
-				jp.j.QueryArgs = csv.NewReader(file)
+				jp.queryArgsDelim, _ = utf8.DecodeRuneInString(s)
 				return nil
 			}
 		},
@@ -259,7 +272,7 @@ var jobOptions = goini.DecodeOptionSet{
 }
 
 func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) error {
-	jp := jobParser{job, df, false}
+	jp := jobParser{j: job, df: df}
 
 	if err := jobOptions.Decode(section, &jp); err != nil {
 		return err
@@ -271,6 +284,8 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) err
 		return fmt.Errorf("must have only one query")
 	} else if job.Rate == 0 && job.BatchSize > 0 {
 		return errors.New("can only specify batch-size with rate")
+	} else if jp.queryArgsDelim != 0 && jp.queryArgsFile == nil {
+		return errors.New("Cannot set query-args-delim with no query-args-file")
 	}
 
 	// If neither the queue depth nor the rate has been set,
@@ -282,6 +297,13 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) err
 
 	if job.Rate > 0 && job.BatchSize == 0 {
 		job.BatchSize = 1
+	}
+
+	if jp.queryArgsFile != nil {
+		job.QueryArgs = csv.NewReader(jp.queryArgsFile)
+		if jp.queryArgsDelim != 0 {
+			job.QueryArgs.Comma = jp.queryArgsDelim
+		}
 	}
 
 	return nil
