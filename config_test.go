@@ -18,12 +18,26 @@ package main
 
 import (
 	"github.com/awreece/goini"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestExamplesParse(t *testing.T) {
+	examples, err := filepath.Glob("examples/*.ini")
+	if err != nil {
+		t.Fatalf("Error finding example files: %v", err)
+	}
+
+	for _, example := range examples {
+		if _, e := parseConfig(supportedDatabaseFlavors["mysql"], example); e != nil {
+			t.Errorf("Error parsing %s: %v", example, e)
+		}
+	}
+}
 
 func TestReadQueries(t *testing.T) {
 	var cases = []struct {
