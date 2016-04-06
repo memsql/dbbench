@@ -104,8 +104,13 @@ func (js *JobStats) Histogram() string {
 			continue
 		}
 
-		bucketBottom := 1 << uint64(bi)
-		bucketTop := 1 << uint64(bi+1)
+		var bucketBottom, bucketTop uint64
+		if bi == 0 {
+			bucketBottom = 0
+		} else {
+			bucketBottom = 1 << uint64(bi-1)
+		}
+		bucketTop = 1 << uint64(bi)
 
 		buf.WriteString(fmt.Sprintf(
 			"%12v - %12v [%5d]: ",
