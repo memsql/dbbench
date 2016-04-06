@@ -22,17 +22,25 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"time"
 )
 
-var queryStatsFile = flag.String("query-stats-file", "",
-	"Log query specific stats to CSV file. <job name, start micros, elapsed micros, rows affected>")
 var confidence = flag.Float64("confidence", 0.99, "Confidence interval.")
 var updateInterval = flag.Duration("intermediate-stats-interval", 1*time.Second,
 	"Show intermediate stats at this interval.")
 var intermediateUpdates = flag.Bool("intermediate-stats", true, "Show intermediate stats every update-interval.")
+
+/*
+ * We use a FileFlagValue so that the query-stats-file is opened when we
+ * first parse the flags (i.e. before we change our base directory).
+ */
+var queryStatsFile WriteFileFlagValue
+
+func init() {
+	flag.Var(&queryStatsFile, "query-stats-file",
+		"Log query specific stats to CSV file. <job name, start micros, elapsed micros, rows affected>")
+}
 
 type jobStats struct {
 	StreamingStats
@@ -130,16 +138,10 @@ func processResults(config *Config, resultChan <-chan *JobResult) map[string]*Jo
 	var allTestStats = make(map[string]*JobStats)
 	var recentTestStats = make(map[string]*jobStats)
 
-	if len(*queryStatsFile) > 0 {
-		if file, err := os.Create(*queryStatsFile); err != nil {
-			log.Fatalf("Could not open result file %s: %v",
-				*queryStatsFile, err)
-		} else {
-			defer file.Close()
-
-			resultFile = csv.NewWriter(file)
-			defer resultFile.Flush()
-		}
+	if queryStatsFile.GetFile() != nil {
+		defer queryStatsFile.GetFile().Close()
+		resultFile = csv.NewWriter(queryStatsFile.GetFile())
+		defer resultFile.Flush()
 	}
 
 	ticker := time.NewTicker(*updateInterval)

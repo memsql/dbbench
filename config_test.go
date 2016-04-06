@@ -190,7 +190,7 @@ func TestParseIniConfig(t *testing.T) {
 			continue
 		}
 
-		config, err := parseIniConfig(df, iniConfig)
+		config, err := parseIniConfig(df, iniConfig, ".")
 		if err != nil {
 			t.Errorf("Error parsing ini config %s: %v", strconv.Quote(c.in), err)
 			continue
@@ -211,7 +211,7 @@ func TestParseIniConfig(t *testing.T) {
 			continue
 		}
 
-		_, err = parseIniConfig(df, iniConfig)
+		_, err = parseIniConfig(df, iniConfig, ".")
 		if err == nil {
 			t.Errorf("Unexpected succesful parse of iniConfig for %s", strconv.Quote(c))
 		}

@@ -26,6 +26,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 )
 
 func cancelOnInterrupt(cancel context.CancelFunc) {
@@ -103,13 +104,15 @@ func main() {
 		flag.Usage()
 		log.Fatal("No config file to parse")
 	}
+	configFile := flag.Arg(0)
+	baseDir := filepath.Dir(configFile)
 
 	flavor, ok := supportedDatabaseFlavors[*driverName]
 	if !ok {
 		log.Fatalf("Database flavor %s not supportd", *driverName)
 	}
 
-	config, err := parseConfig(flavor, flag.Arg(0))
+	config, err := parseConfig(flavor, configFile)
 	if err != nil {
 		log.Fatalf("parsing config file %v", err)
 	}
@@ -118,6 +121,8 @@ func main() {
 		log.Fatal("Error connecting to the database: ", err)
 	} else {
 		defer db.Close()
+
+		os.Chdir(baseDir)
 		runTest(db, config)
 	}
 }

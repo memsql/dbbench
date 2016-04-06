@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -89,6 +90,7 @@ func decodeGlobalSection(df DatabaseFlavor, s goini.RawSection, c *Config) error
 type setupSectionParser struct {
 	queries []string
 	df      DatabaseFlavor
+	basedir string
 }
 
 var setupOptions = goini.DecodeOptionSet{
@@ -111,6 +113,9 @@ var setupOptions = goini.DecodeOptionSet{
 			"connection (e.g USE or BEGIN).",
 		Parse: func(v string, sspi interface{}) error {
 			ssp := sspi.(*setupSectionParser)
+			if !filepath.IsAbs(v) {
+				v = filepath.Join(ssp.basedir, v)
+			}
 			if qs, err := readQueriesFromFile(ssp.df, v); err != nil {
 				return err
 			} else {
@@ -121,8 +126,8 @@ var setupOptions = goini.DecodeOptionSet{
 	},
 }
 
-func decodeSetupSection(df DatabaseFlavor, s goini.RawSection, ss *[]string) error {
-	parser := setupSectionParser{*ss, df}
+func decodeSetupSection(df DatabaseFlavor, s goini.RawSection, basedir string, ss *[]string) error {
+	parser := setupSectionParser{df: df, basedir: basedir}
 	err := setupOptions.Decode(s, &parser)
 	if err == nil {
 		*ss = parser.queries
@@ -133,6 +138,7 @@ func decodeSetupSection(df DatabaseFlavor, s goini.RawSection, ss *[]string) err
 type jobParser struct {
 	j                 *Job
 	df                DatabaseFlavor
+	basedir           string
 	queryArgsFile     io.Reader
 	queryArgsDelim    rune
 	multiQueryAllowed bool
@@ -173,6 +179,9 @@ var jobOptions = goini.DecodeOptionSet{
 			"effect on the connection (e.g USE or BEGIN).",
 		Parse: func(v string, jpi interface{}) error {
 			jp := jpi.(*jobParser)
+			if !filepath.IsAbs(v) {
+				v = filepath.Join(jp.basedir, v)
+			}
 			if qs, err := readQueriesFromFile(jp.df, v); err != nil {
 				return err
 			} else {
@@ -186,6 +195,9 @@ var jobOptions = goini.DecodeOptionSet{
 			"query.",
 		Parse: func(v string, jpi interface{}) (err error) {
 			jp := jpi.(*jobParser)
+			if !filepath.IsAbs(v) {
+				v = filepath.Join(jp.basedir, v)
+			}
 			jp.queryArgsFile, err = os.Open(v)
 			return err
 		},
@@ -259,20 +271,24 @@ var jobOptions = goini.DecodeOptionSet{
 			}
 		},
 	},
-	"query-log": &goini.DecodeOption{Kind: goini.UniqueOption,
+	"query-log-file": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "A flat text file containing a log file to replay instead of a " +
 			"normal job. The query log format is a series of newline " +
 			"delimited records containing a time in microseconds and a query " +
 			"separated by a comma. For example, '8644882534,select 1'.",
-		Parse: func(v string, jp interface{}) (e error) {
-			jp.(*jobParser).j.QueryLog, e = os.Open(v)
+		Parse: func(v string, jpi interface{}) (e error) {
+			jp := jpi.(*jobParser)
+			if !filepath.IsAbs(v) {
+				v = filepath.Join(jp.basedir, v)
+			}
+			jp.j.QueryLog, e = os.Open(v)
 			return e
 		},
 	},
 }
 
-func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) error {
-	jp := jobParser{j: job, df: df}
+func decodeJobSection(df DatabaseFlavor, section goini.RawSection, basedir string, job *Job) error {
+	jp := jobParser{j: job, df: df, basedir: basedir}
 
 	if err := jobOptions.Decode(section, &jp); err != nil {
 		return err
@@ -309,7 +325,7 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, job *Job) err
 	return nil
 }
 
-func decodeConfigJobs(df DatabaseFlavor, config *Config, iniConfig *goini.RawConfig) error {
+func decodeConfigJobs(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir string, config *Config) error {
 	config.Jobs = make(map[string]*Job)
 	for name, section := range iniConfig.Sections() {
 		// Don't try to parse a reserved section as a job.
@@ -319,7 +335,7 @@ func decodeConfigJobs(df DatabaseFlavor, config *Config, iniConfig *goini.RawCon
 
 		job := new(Job)
 		job.Name = name
-		if err := decodeJobSection(df, section, job); err != nil {
+		if err := decodeJobSection(df, section, basedir, job); err != nil {
 			return fmt.Errorf("Error parsing job %s: %v",
 				strconv.Quote(name), err)
 		}
@@ -328,19 +344,19 @@ func decodeConfigJobs(df DatabaseFlavor, config *Config, iniConfig *goini.RawCon
 	return nil
 }
 
-func parseIniConfig(df DatabaseFlavor, iniConfig *goini.RawConfig) (*Config, error) {
+func parseIniConfig(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir string) (*Config, error) {
 	var config = new(Config)
 
 	if err := decodeGlobalSection(df, iniConfig.GlobalSection, config); err != nil {
 		return nil, fmt.Errorf("Error parsing global section: %v", err)
 	}
-	if err := decodeSetupSection(df, iniConfig.Sections()["setup"], &config.Setup); err != nil {
+	if err := decodeSetupSection(df, iniConfig.Sections()["setup"], basedir, &config.Setup); err != nil {
 		return nil, fmt.Errorf("Error parsing setup section: %v", err)
 	}
-	if err := decodeSetupSection(df, iniConfig.Sections()["teardown"], &config.Teardown); err != nil {
+	if err := decodeSetupSection(df, iniConfig.Sections()["teardown"], basedir, &config.Teardown); err != nil {
 		return nil, fmt.Errorf("Error parsing teardown section: %v", err)
 	}
-	if err := decodeConfigJobs(df, config, iniConfig); err != nil {
+	if err := decodeConfigJobs(df, iniConfig, basedir, config); err != nil {
 		return nil, err
 	}
 
@@ -365,5 +381,5 @@ func parseConfig(df DatabaseFlavor, configFile string) (*Config, error) {
 		return nil, err
 	}
 
-	return parseIniConfig(df, iniConfig)
+	return parseIniConfig(df, iniConfig, filepath.Dir(configFile))
 }

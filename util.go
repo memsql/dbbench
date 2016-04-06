@@ -19,9 +19,44 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 )
+
+type WriteFileFlagValue struct {
+	f *os.File
+}
+
+func (wffv *WriteFileFlagValue) Set(v string) (err error) {
+	if wffv.f != nil {
+		wffv.f.Close()
+	}
+
+	if v == "" {
+		wffv.f = nil
+	} else {
+		wffv.f, err = os.Create(v)
+	}
+	return err
+}
+
+func (wffv *WriteFileFlagValue) String() string {
+	ret := "&fileFlagValue{"
+	if wffv.f != nil {
+		ret += wffv.f.Name()
+	}
+	ret += "}"
+	return ret
+}
+
+func (wffv *WriteFileFlagValue) Get() interface{} {
+	return wffv.f
+}
+
+func (wffv *WriteFileFlagValue) GetFile() *os.File {
+	return wffv.f
+}
 
 func firstString(c, d string) string {
 	if c != "" {
