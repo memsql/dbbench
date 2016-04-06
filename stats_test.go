@@ -43,6 +43,56 @@ func TestNormInverseCDF(t *testing.T) {
 	}
 }
 
+func TestLog2(t *testing.T) {
+	type testcase struct {
+		val      uint64
+		expected int
+	}
+
+	for _, testCase := range []testcase{
+		{val: 1, expected: 0},
+		{val: 0, expected: -1},
+		{val: 0x2, expected: 1},
+		{val: 0x3, expected: 1},
+		{val: 0x4, expected: 2},
+		{val: 0x10, expected: 4},
+		{val: 0x101, expected: 8},
+	} {
+		actual := log2(testCase.val)
+		if actual != testCase.expected {
+			t.Errorf("For log2(%#x) expected %d but got %d",
+				testCase.val, testCase.expected, actual)
+		}
+	}
+}
+
+func TestStreamingHistogram(t *testing.T) {
+	type testcase struct {
+		vals     []uint64
+		expected map[uint]uint64
+	}
+
+	for _, testCase := range []testcase{
+		{[]uint64{1}, map[uint]uint64{1: 1}},
+	} {
+		var sh StreamingHistogram
+		for _, v := range testCase.vals {
+			sh.Add(v)
+		}
+
+		t.Logf("Testing %d", testCase.vals)
+		var expectedBuckets [64]uint64
+		for k, v := range testCase.expected {
+			expectedBuckets[k] = v
+		}
+
+		if !reflect.DeepEqual(expectedBuckets, sh.Buckets) {
+			t.Errorf("For buckets\n\texpected %d\n\tbut got %d",
+				expectedBuckets, sh.Buckets)
+		}
+	}
+}
+
 func TestStreamingSample(t *testing.T) {
 	type testcase struct {
 		vals        []float64

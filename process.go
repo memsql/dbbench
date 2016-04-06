@@ -33,7 +33,6 @@ var confidence = flag.Float64("confidence", 0.99, "Confidence interval.")
 var updateInterval = flag.Duration("intermediate-stats-interval", 1*time.Second,
 	"Show intermediate stats at this interval.")
 var intermediateUpdates = flag.Bool("intermediate-stats", true, "Show intermediate stats every update-interval.")
-var histogramBuckets = flag.Int("histogram-buckets", 10, "The number of buckets in the histogram.")
 
 type jobStats struct {
 	StreamingStats
@@ -44,7 +43,7 @@ type jobStats struct {
 
 type JobStats struct {
 	jobStats
-	StreamingSample
+	StreamingHistogram
 }
 
 func (js *jobStats) Update(jr *JobResult) {
@@ -68,10 +67,10 @@ func (js *jobStats) String() string {
 
 func (js *JobStats) Update(jr *JobResult) {
 	js.jobStats.Update(jr)
-	js.StreamingSample.Add(float64(jr.Elapsed))
+	js.StreamingHistogram.Add(uint64(jr.Elapsed))
 }
 
-func histogramBar(buf *bytes.Buffer, count, maxCount int) {
+func histogramBar(buf *bytes.Buffer, count, maxCount uint64) {
 	width := int(50 * 8 * float64(count) / float64(maxCount))
 
 	// Deliberately highlight outliers
@@ -86,19 +85,27 @@ func histogramBar(buf *bytes.Buffer, count, maxCount int) {
 
 func (js *JobStats) Histogram() string {
 	var buf bytes.Buffer
-	buckets, min, max, extra := js.StreamingSample.Histogram(*histogramBuckets)
-	diff := (max - min) / float64(len(buckets))
-	maxCount := maxi(buckets)
+	buckets := js.StreamingHistogram.Buckets[:]
 
-	if extra > 0 {
-		buf.WriteString(fmt.Sprintln("WARNING:", extra, "points omitted"))
-	}
-	for bi, count := range buckets {
-		bucketBottom := float64(bi)*diff + min
-		bucketTop := float64(bi+1)*diff + min
-		if bi == len(buckets)-1 {
-			bucketTop = max
+	var minBucket = -1
+	var maxBucket = -1
+	for i, b := range buckets {
+		if b > 0 {
+			maxBucket = i
+			if minBucket < 0 {
+				minBucket = i
+			}
 		}
+	}
+	maxCount := maxUint64(buckets)
+
+	for bi, count := range buckets {
+		if bi < minBucket || bi > maxBucket {
+			continue
+		}
+
+		bucketBottom := 1 << uint64(bi)
+		bucketTop := 1 << uint64(bi+1)
 
 		buf.WriteString(fmt.Sprintf(
 			"%12v - %12v [%5d]: ",
@@ -110,11 +117,7 @@ func (js *JobStats) Histogram() string {
 }
 
 func (js *JobStats) String() string {
-	ret := js.jobStats.String()
-	if *histogramBuckets > 0 {
-		ret += "\n" + js.Histogram()
-	}
-	return ret
+	return js.jobStats.String() + "\n" + js.Histogram()
 }
 
 func processResults(config *Config, resultChan <-chan *JobResult) map[string]*JobStats {

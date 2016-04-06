@@ -24,6 +24,38 @@ import (
 
 var maxSampleCount = flag.Int64("max-sample-count", 10000, "Samples to keep when streaming.")
 
+type StreamingHistogram struct {
+	Buckets [64]uint64
+}
+
+func log2(val uint64) int {
+	if val == 0 {
+		return -1
+	}
+
+	var bit uint
+	var masks = []uint64{
+		0xFFFFFFFF00000000,
+		0xFFFF0000,
+		0xFF00,
+		0xF0,
+		0xC,
+		0x2,
+	}
+	for i, m := range masks {
+		shift := uint(1 << uint(len(masks)-1-i))
+		if (val & m) > 0 {
+			bit |= shift
+			val >>= shift
+		}
+	}
+	return int(bit)
+}
+
+func (sh *StreamingHistogram) Add(x uint64) {
+	sh.Buckets[log2(x)+1] += 1
+}
+
 type StreamingSample struct {
 	count   int
 	samples []float64
@@ -61,8 +93,8 @@ func (ss *StreamingSample) Histogram(nBucketsMax int) (buckets []int, minV float
 		panic("Cannot compute histogram with <=0 buckets.")
 	}
 
-	minV = minf(ss.samples)
-	maxV = maxf(ss.samples)
+	minV = minFloat64(ss.samples)
+	maxV = maxFloat64(ss.samples)
 	diff := maxV - minV
 
 	if diff > 0.0 {

@@ -95,7 +95,7 @@ func quotedStruct(s interface{}) string {
 	return buf.String()
 }
 
-func minf(vals []float64) float64 {
+func minFloat64(vals []float64) float64 {
 	m := vals[0]
 	for _, v := range vals[1:] {
 		if v < m {
@@ -105,7 +105,7 @@ func minf(vals []float64) float64 {
 	return m
 }
 
-func maxf(vals []float64) float64 {
+func maxFloat64(vals []float64) float64 {
 	m := vals[0]
 	for _, v := range vals[1:] {
 		if v > m {
@@ -115,7 +115,17 @@ func maxf(vals []float64) float64 {
 	return m
 }
 
-func maxi(vals []int) int {
+func maxInt(vals []int) int {
+	m := vals[0]
+	for _, v := range vals[1:] {
+		if v > m {
+			m = v
+		}
+	}
+	return m
+}
+
+func maxUint64(vals []uint64) uint64 {
 	m := vals[0]
 	for _, v := range vals[1:] {
 		if v > m {
