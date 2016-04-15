@@ -102,11 +102,11 @@ By default, a job runs in a repeatedly in a single connection. There are
     time. For example, the job in this workload will run the same query
     repeatedly in 10 simulataneous connections.
 
-        ```ini
-        [uses 10 connections]
-        query=select sleep(1)
-        concurrency=10
-        ```
+      ```ini
+      [uses 10 connections]
+      query=select sleep(1)
+      concurrency=10
+      ```
 
   - Add a `rate` parameter to the job, which defines how frequently a batch of
     job instances will be started. `dbbench` will use as many connections
@@ -114,11 +114,11 @@ By default, a job runs in a repeatedly in a single connection. There are
     For example, the job in this workload will run the given query once
     every 10 seconds:
 
-        ```ini
-        [once every 10 seconds]
-        query=select sleep(100)
-        rate=0.1
-        ```
+      ```ini
+      [once every 10 seconds]
+      query=select sleep(100)
+      rate=0.1
+      ```
 
     Note that since the query takes 100 seconds to complete but is started
     every 10 seconds, this workload will need to use at least 10 connections.
@@ -127,12 +127,12 @@ By default, a job runs in a repeatedly in a single connection. There are
     be launched in the batch. For example, the job in this workload will run
     10 simultaneous queries every second:
 
-        ```ini
-        [once every second]
-        query=select sleep(0.1)
-        rate=1
-        batch-size=10
-        ```
+      ```ini
+      [once every second]
+      query=select sleep(0.1)
+      rate=1
+      batch-size=10
+      ```
 
 > Tutorial Question: Write a workload that does 1000 load data queries a minute that all start executing in the first second of the minute. [Check](examples/burst_load_data.ini) your answer when you are done.
 
