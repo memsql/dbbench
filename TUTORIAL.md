@@ -186,23 +186,23 @@ There are 3 different ways to stop a job:
     no new instances of any job will be started (althogh any active jobs will
     be quiesced). For example,
 
-        ```ini
-        duration=10s
+      ```ini
+      duration=10s
    
-        [run forever]
-        query=select sleep(1)
-        ```
+      [run forever]
+      query=select sleep(1)
+      ```
 
   - Add a `stop` parameter to the job configuration, which defines when this
     particular job will stop. After this time has elapsed, no new instances
     of this job will be started (althogh any active jobs will be quiesced).
     For example,
 
-        ```ini
-        [run for 10 seconds]
-        query=select sleep(1)
-        stop=10s
-        ```
+      ```ini
+      [run for 10 seconds]
+      query=select sleep(1)
+      stop=10s
+      ```
 
     Note that there is an `start` parameter for jobs that works in an analogous
     manner.
@@ -212,8 +212,8 @@ There are 3 different ways to stop a job:
     have been started, no new instances of this job will be started. For
     example,
 
-        ```ini
-        [run 5 times]
-        query=select sleep(1)
-        count=5
-        ```
+      ```ini
+      [run 5 times]
+      query=select sleep(1)
+      count=5
+      ```
