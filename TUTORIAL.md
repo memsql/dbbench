@@ -90,7 +90,7 @@ $ dbbench --host=127.0.0.1 --port=3306 --database=testdb examples/select_count_s
 2016/04/15 13:27:06 Performing teardown
 ```
 
-> Tutorial Question: Write a workload that loads data into a table in the setup section. [Check](examples/simple_load_data.ini) your answer when you are done.
+> **Tutorial Question: Write a workload that loads data into a table in the setup section. [Check](examples/simple_load_data.ini) your answer when you are done.**
 
 ## Using multiple connections
 By default, a job runs in a repeatedly in a single connection. There are
@@ -134,7 +134,7 @@ By default, a job runs in a repeatedly in a single connection. There are
       batch-size=10
       ```
 
-> Tutorial Question: Write a workload that does 1000 load data queries a minute that all start executing in the first second of the minute. [Check](examples/burst_load_data.ini) your answer when you are done.
+> **Tutorial Question: Write a workload that does 1000 load data queries a minute that all start executing in the first second of the minute. [Check](examples/burst_load_data.ini) your answer when you are done.**
 
 ## Parameterizing queries
 
@@ -176,7 +176,7 @@ query-args-file=hello_worlds.tsv
 query-args-delim="\t"
 ```
 
-> Tutorial Question: Write a workload that does a load data of a different file every second. [Check](examples/load_data.ini) your answer when you are done.
+> **Tutorial Question: Write a workload that does a load data of a different file every second. [Check](examples/load_data.ini) your answer when you are done.**
 
 ## Stopping a job
 There are 3 different ways to stop a job:
