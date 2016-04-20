@@ -302,13 +302,27 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, basedir strin
 		return errors.New("can only specify batch-size with rate")
 	} else if jp.queryArgsDelim != 0 && jp.queryArgsFile == nil {
 		return errors.New("Cannot set query-args-delim with no query-args-file")
+	} else if jp.queryArgsFile != nil && job.QueryLog != nil {
+		return errors.New("Cannot use query-args-file with query-log-file")
 	}
 
-	// If neither the queue depth nor the rate has been set,
-	// allow one query at a time.
-	//
-	if job.QueueDepth == 0 && job.Rate == 0 {
+	differentJobTypes := 0
+	if job.QueueDepth > 0 {
+		differentJobTypes += 1
+	}
+	if job.QueryLog != nil {
+		differentJobTypes += 1
+	}
+	if job.Rate > 0 {
+		differentJobTypes += 1
+	}
+	// The default job type is 1 thread.
+	if differentJobTypes == 0 {
 		job.QueueDepth = 1
+	}
+
+	if differentJobTypes > 1 {
+		return errors.New("Can only specify one of rate, queue-depth, or query-log-file")
 	}
 
 	if job.Rate > 0 && job.BatchSize == 0 {
