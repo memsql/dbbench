@@ -217,3 +217,47 @@ There are 3 different ways to stop a job:
       query=select sleep(1)
       count=5
       ```
+
+## Running queries from a file
+It is possible to replay queries in parallel from a file in a job. One would want 
+to do this if they have a general log or a series of queries that they just want 
+to replay without much thought or job control other than an offset from start time. 
+To use `query-log-file` in a job:
+
+```ini
+[query log file]
+query-log-file=/path/to/file
+```
+
+The file consists of an offest in microseconds (NOT milliseconds) and a query per 
+line separated by a comma:
+
+```ini
+0,select count(*) from test_table
+500,insert into test_table values (1)
+2000,select count(*) from test_table
+```
+
+Those queries will essentially be run one after another, however, one can construct 
+the offsets to run jobs in parallel. One can also use timestamps for the offset, 
+using the first job as the starting point. Example of timestamps (remember to 
+convert timestamps in ms to μs):
+
+```ini
+1461197566000,select count(*) from test_table
+1461198066000,insert into test_table values (1)
+1461198566000,select count(*) from test_table
+```
+
+Caveats:
+  - A job may not use `query-log-file` and `query` at the same time, nor can one use 
+    the `query-args-file` with the `query-log-file`.
+  - `count` may be used, this will limit the number of queries run from the file to 
+    the count value.
+  - `rate`, `queue-depth`, and `concurrency` are not allowed.
+  - Session variables, transactions and any other stateful operations are unsupported.
+  
+
+> **Tutoral Question: Write a query-log that run 4 concurrent sleep(1) queries.**
+
+> **Tutoral Question: Convert your general log to a `query-log-file`.**
