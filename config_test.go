@@ -33,7 +33,7 @@ func TestExamplesParse(t *testing.T) {
 	}
 
 	for _, example := range examples {
-		if _, e := parseConfig(supportedDatabaseFlavors["mysql"], example); e != nil {
+		if _, e := parseConfig(supportedDatabaseFlavors["mysql"], example, "examples/"); e != nil {
 			t.Errorf("Error parsing %s: %v", example, e)
 		}
 	}

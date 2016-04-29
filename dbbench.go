@@ -70,6 +70,8 @@ func runTest(db Database, config *Config) {
 }
 
 var driverName = flag.String("driver", "mysql", "Database driver to use.")
+var baseDir = flag.String("base-dir", "",
+	"Directory to use as base for files (default directory containing runfile).")
 
 var printVersion = flag.Bool("version", false, "Print the version and quit")
 
@@ -105,14 +107,16 @@ func main() {
 		log.Fatal("No config file to parse")
 	}
 	configFile := flag.Arg(0)
-	baseDir := filepath.Dir(configFile)
+	if *baseDir == "" {
+		*baseDir = filepath.Dir(configFile)
+	}
 
 	flavor, ok := supportedDatabaseFlavors[*driverName]
 	if !ok {
 		log.Fatalf("Database flavor %s not supportd", *driverName)
 	}
 
-	config, err := parseConfig(flavor, configFile)
+	config, err := parseConfig(flavor, configFile, *baseDir)
 	if err != nil {
 		log.Fatalf("parsing config file %v", err)
 	}
@@ -122,7 +126,7 @@ func main() {
 	} else {
 		defer db.Close()
 
-		os.Chdir(baseDir)
+		os.Chdir(*baseDir)
 		runTest(db, config)
 	}
 }

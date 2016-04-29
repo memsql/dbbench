@@ -387,7 +387,7 @@ func parseIniConfig(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir strin
 	return config, nil
 }
 
-func parseConfig(df DatabaseFlavor, configFile string) (*Config, error) {
+func parseConfig(df DatabaseFlavor, configFile string, baseDir string) (*Config, error) {
 	cp := goini.NewRawConfigParser()
 	cp.ParseFile(configFile)
 	iniConfig, err := cp.Finish()
@@ -395,5 +395,5 @@ func parseConfig(df DatabaseFlavor, configFile string) (*Config, error) {
 		return nil, err
 	}
 
-	return parseIniConfig(df, iniConfig, filepath.Dir(configFile))
+	return parseIniConfig(df, iniConfig, baseDir)
 }
