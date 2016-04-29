@@ -176,6 +176,13 @@ query-args-file=hello_worlds.tsv
 query-args-delim="\t"
 ```
 
+Note that you can make a 'infinitely' long file with a named pipe:
+
+```console
+$ mkfifo /tmp/pipe
+$ while true; do echo hello; echo world; done >/tmp/pipe
+```
+
 > **Tutorial Question: Write a workload that does a load data of a different file every second. [Check](examples/load_data.ini) your answer when you are done.**
 
 ## Stopping a job
