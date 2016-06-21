@@ -16,27 +16,34 @@ done with SQL queries.
 
 ## Getting started
 
-To install, first install the dependencies (`golang-go` and `git`). If you are installing `go` for the first time, you will also need
+To install, first install the dependencies (`golang-go` and `git`).
+
+```console
+sudo apt-get -y install golang
+sudo apt-get -y install git
+```
+
+If you are installing `go` for the first time, you will also need
 to [set your `GOPATH` environment
 variable](https://golang.org/doc/code.html#GOPATH) and add `$GOPATH/bin` to
 your `PATH`.
 
 ```console
-$ mkdir $HOME/go
-$ export GOPATH=$HOME/go
-$ export PATH=$PATH:$GOPATH/bin
+mkdir $HOME/go
+export GOPATH=$HOME/go
+export PATH=$PATH:$GOPATH/bin
 ```
 
 Once `go` has been set up, use the `go` tool to get `dbbench`.
 
 ``` console
-$ go get github.com/memsql/dbbench
+go get github.com/memsql/dbbench
 ```
 
 You can also use the `go` tool to update `dbbench`:
 
 ```console
-$ go get -u github.com/memsql/dbbench
+go get -u github.com/memsql/dbbench
 ```
 
 ## Running `dbbench`
