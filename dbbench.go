@@ -44,7 +44,7 @@ func runTest(db Database, config *Config) {
 	if len(config.Setup) > 0 {
 		log.Printf("Performing setup")
 		for _, query := range config.Setup {
-			db.RunQuery(query, nil)
+			db.RunQuery(nil, query, nil)
 		}
 	}
 
@@ -64,7 +64,7 @@ func runTest(db Database, config *Config) {
 	if len(config.Teardown) > 0 {
 		log.Printf("Performing teardown")
 		for _, query := range config.Teardown {
-			db.RunQuery(query, nil)
+			db.RunQuery(nil, query, nil)
 		}
 	}
 }

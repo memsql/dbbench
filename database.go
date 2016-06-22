@@ -70,12 +70,14 @@ type ConnectionConfig struct {
 type Database interface {
 	/*
 	 * Runs the query, returning the number of records affected.
+	 * If results is not nil, write the results of the query to
+	 * it.
 	 *
 	 * It is assumed that Database will have it's own connection pooling
 	 * so that it is safe to call RunQuery from arbitrarily many
 	 * goroutines without blocking.
 	 */
-	RunQuery(query string, args []interface{}) (int64, error)
+	RunQuery(results *SafeCSVWriter, query string, args []interface{}) (int64, error)
 
 	/*
 	 * Close the database, reclaiming any resources.

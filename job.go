@@ -47,8 +47,9 @@ type Job struct {
 	Count      uint64
 	BatchSize  uint64
 
-	QueryLog  io.Reader
-	QueryArgs *csv.Reader
+	QueryLog     io.ReadCloser
+	QueryArgs    *csv.Reader
+	QueryResults *SafeCSVWriter
 
 	Start time.Duration
 	Stop  time.Duration
@@ -61,12 +62,12 @@ type JobResult struct {
 	RowsAffected int64
 }
 
-func (ji *jobInvocation) Invoke(db Database, start time.Duration) *JobResult {
+func (ji *jobInvocation) Invoke(db Database, results *SafeCSVWriter, start time.Duration) *JobResult {
 	invokeStart := time.Now()
 	var rowsAffected int64
 
 	for _, qi := range ji.queries {
-		rows, err := db.RunQuery(qi.query, qi.args)
+		rows, err := db.RunQuery(results, qi.query, qi.args)
 		if err != nil {
 			// TODO(awreece) Avoid log.Fatal.
 			log.Fatalf("error for query %s in %s: %v", qi.query, ji.name, err)
@@ -228,7 +229,7 @@ func (job *Job) runLoop(ctx context.Context, db Database, startTime time.Time, r
 		}
 		go func(_ji *jobInvocation) {
 			defer wg.Done()
-			r := _ji.Invoke(db, time.Since(startTime))
+			r := _ji.Invoke(db, job.QueryResults, time.Since(startTime))
 			if job.QueueDepth > 0 {
 				queueSem <- nil
 			}
@@ -250,11 +251,22 @@ func (job *Job) Run(ctx context.Context, db Database, results chan<- *JobResult)
 		ctx, _ = context.WithTimeout(ctx, job.Stop)
 	}
 
+	defer job.cleanup()
+
 	select {
 	case <-ctx.Done():
 		return
 	case <-time.NewTimer(job.Start).C:
 		job.runLoop(ctx, db, startTime, results)
+	}
+}
+
+func (job *Job) cleanup() {
+	if job.QueryResults != nil {
+		job.QueryResults.Close()
+	}
+	if job.QueryLog != nil {
+		job.QueryLog.Close()
 	}
 }
 

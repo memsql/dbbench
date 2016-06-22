@@ -29,10 +29,11 @@ type sqlDb struct {
 	db *sql.DB
 }
 
-func (s *sqlDb) RunQuery(q string, args []interface{}) (int64, error) {
+func (s *sqlDb) RunQuery(w *SafeCSVWriter, q string, args []interface{}) (int64, error) {
+
 	switch action := strings.ToLower(strings.Fields(q)[0]); action {
 	case "select", "show", "explain", "describe", "desc":
-		return s.countQueryRows(q, args)
+		return s.countQueryRows(w, q, args)
 	case "use", "begin":
 		return 0, fmt.Errorf("invalid query action: %v", action)
 	default:
@@ -40,7 +41,41 @@ func (s *sqlDb) RunQuery(q string, args []interface{}) (int64, error) {
 	}
 }
 
-func (s *sqlDb) countQueryRows(q string, args []interface{}) (int64, error) {
+type rowOutputter struct {
+	values   []string
+	pointers []interface{}
+	w        *SafeCSVWriter
+}
+
+func makeRowOutputter(w *SafeCSVWriter, r *sql.Rows) (*rowOutputter, error) {
+	columns, err := r.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO(awreece) Is it possible to avoid egregious heap allocations?
+	res := make([]string, len(columns))
+	resP := make([]interface{}, len(columns))
+	for i := range columns {
+		resP[i] = &res[i]
+	}
+
+	return &rowOutputter{res, resP, w}, nil
+}
+
+func (ro *rowOutputter) outputRows(r *sql.Rows) error {
+	if err := r.Scan(ro.pointers...); err != nil {
+		return err
+	}
+
+	if err := ro.w.Write(ro.values); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *sqlDb) countQueryRows(w *SafeCSVWriter, q string, args []interface{}) (int64, error) {
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return 0, err
@@ -48,12 +83,34 @@ func (s *sqlDb) countQueryRows(q string, args []interface{}) (int64, error) {
 	defer rows.Close()
 
 	var rowsAffected int64
+	var ro *rowOutputter
+
+	if w != nil {
+		if ro, err = makeRowOutputter(w, rows); err != nil {
+			return 0, err
+		}
+	}
+
 	for rows.Next() {
+		if w != nil {
+			if err = ro.outputRows(rows); err != nil {
+				return 0, err
+			}
+		}
 		rowsAffected++
 	}
 	if err = rows.Err(); err != nil {
 		return 0, err
 	}
+
+	if w != nil {
+		w.Flush()
+		err = w.Error()
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	return rowsAffected, nil
 }
 

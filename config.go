@@ -216,6 +216,19 @@ var jobOptions = goini.DecodeOptionSet{
 			}
 		},
 	},
+	"query-results-file": &goini.DecodeOption{Kind: goini.UniqueOption,
+		Usage: "Results from executed queries will be written to this file " +
+			"as comma separated values. If the file already exists, it " +
+			"will be truncated",
+		Parse: func(v string, jpi interface{}) (err error) {
+			jp := jpi.(*jobParser)
+			if !filepath.IsAbs(v) {
+				v = filepath.Join(jp.basedir, v)
+			}
+			jp.j.QueryResults, err = NewSafeCSVWriter(v)
+			return err
+		},
+	},
 	"rate": &goini.DecodeOption{Kind: goini.UniqueOption,
 		Usage: "The number of batches executed per second (default 0.0).",
 		Parse: func(v string, jpi interface{}) (e error) {
@@ -341,11 +354,12 @@ func decodeJobSection(df DatabaseFlavor, section goini.RawSection, basedir strin
 
 func decodeConfigJobs(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir string, config *Config) error {
 	config.Jobs = make(map[string]*Job)
-	for name, section := range iniConfig.Sections() {
+	for _, name := range iniConfig.Sections() {
 		// Don't try to parse a reserved section as a job.
 		if name == "setup" || name == "teardown" || name == "global" {
 			continue
 		}
+		section := iniConfig.Section(name)
 
 		job := new(Job)
 		job.Name = name
@@ -364,10 +378,10 @@ func parseIniConfig(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir strin
 	if err := decodeGlobalSection(df, iniConfig.GlobalSection, config); err != nil {
 		return nil, fmt.Errorf("Error parsing global section: %v", err)
 	}
-	if err := decodeSetupSection(df, iniConfig.Sections()["setup"], basedir, &config.Setup); err != nil {
+	if err := decodeSetupSection(df, iniConfig.Section("setup"), basedir, &config.Setup); err != nil {
 		return nil, fmt.Errorf("Error parsing setup section: %v", err)
 	}
-	if err := decodeSetupSection(df, iniConfig.Sections()["teardown"], basedir, &config.Teardown); err != nil {
+	if err := decodeSetupSection(df, iniConfig.Section("teardown"), basedir, &config.Teardown); err != nil {
 		return nil, fmt.Errorf("Error parsing teardown section: %v", err)
 	}
 	if err := decodeConfigJobs(df, iniConfig, basedir, config); err != nil {
