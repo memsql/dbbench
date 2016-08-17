@@ -121,7 +121,7 @@ func (js *JobStats) Histogram() string {
 		bucketTop = 1 << uint64(bi)
 
 		buf.WriteString(fmt.Sprintf(
-			"%12v - %12v [%5d]: ",
+			"%12v - %12v [%6d]: ",
 			time.Duration(bucketBottom), time.Duration(bucketTop), count))
 		histogramBar(&buf, count, maxCount)
 		buf.WriteString("\n")
