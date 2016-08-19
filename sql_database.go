@@ -167,7 +167,7 @@ func (sq *sqlDatabaseFlavor) Connect(cc *ConnectionConfig) (Database, error) {
 	 *
 	 *         database/sql: Use all connections in pool
 	 */
-	db.SetMaxOpenConns(*maxIdleConns)
+	db.SetMaxOpenConns(*maxActiveConns)
 
 	return &sqlDb{db}, nil
 }
