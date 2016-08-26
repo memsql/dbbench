@@ -110,6 +110,10 @@ func main() {
 		flag.Usage()
 		log.Fatal("No config file to parse")
 	}
+	if len(flag.Args()) > 1 {
+		flag.Usage()
+		log.Fatal("Cannot have more than one config file (do you have flags after the config file??)")
+	}
 	configFile := flag.Arg(0)
 	if *baseDir == "" {
 		*baseDir = filepath.Dir(configFile)
