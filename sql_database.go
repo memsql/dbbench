@@ -204,7 +204,7 @@ func mySQLDataSourceName(cc *ConnectionConfig) string {
 }
 
 func postgresDataSourceName(cc *ConnectionConfig) string {
-	return fmt.Sprintf("postggresql://%s:%s@%s:%d/%s",
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
 		firstString(cc.Username, "root"),
 		firstString(cc.Password, ""),
 		firstString(cc.Host, "localhost"),
