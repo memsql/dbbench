@@ -62,6 +62,7 @@ type ConnectionConfig struct {
 	Host     string
 	Port     int
 	Database string
+	Params   string
 }
 
 /*
