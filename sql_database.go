@@ -215,10 +215,11 @@ func postgresDataSourceName(cc *ConnectionConfig) string {
 }
 
 func sqlServerDataSourceName(cc *ConnectionConfig) string {
-	return fmt.Sprintf("user id=%s;password=%s;server=%s;port=%d;database=%s",
+	return fmt.Sprintf("user id=%s;password=%s;server=%s;port=%d;database=%s;%s",
 		firstString(cc.Username, "root"),
 		firstString(cc.Password, ""),
 		firstString(cc.Host, "localhost"),
 		firstInt(cc.Port, 1433),
-		firstString(cc.Database, ""))
+		firstString(cc.Database, ""),
+		firstString(cc.Params, ""))
 }
