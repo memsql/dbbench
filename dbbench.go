@@ -92,6 +92,8 @@ func init() {
 		"Database connection port")
 	flag.StringVar(&GlobalConfig.Database, "database", "",
 		"Database connection database")
+	flag.StringVar(&GlobalConfig.Params, "params", "",
+		"Override default connection parameters")
 }
 
 func main() {
