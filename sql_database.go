@@ -65,6 +65,16 @@ func makeRowOutputter(w *SafeCSVWriter, r *sql.Rows) (*rowOutputter, error) {
 
 func (ro *rowOutputter) outputRows(r *sql.Rows) error {
 	if err := r.Scan(ro.pointers...); err != nil {
+		// Since rows are output to a CSV as strings, there is no possible output
+		// string that uniquely represents NULL and not a legitimately possible
+		// string value.
+		//
+		// When the output value is a string, and the row value is NULL/nil,
+		// database/sql.convertAssign will return this error.
+		//
+		if strings.HasSuffix(err.Error(), "unsupported Scan, storing driver.Value type <nil> into type *string") {
+			err = fmt.Errorf("%v, NULL cannot be uniquely encoded as a CSV value, consider using the SQL function COALESCE to convert NULLs to some default value", err)
+		}
 		return err
 	}
 
