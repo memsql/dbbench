@@ -42,9 +42,10 @@ func (s *sqlDb) RunQuery(w *SafeCSVWriter, q string, args []interface{}) (int64,
 }
 
 type rowOutputter struct {
-	values   []sql.NullString
-	pointers []interface{}
-	w        *SafeCSVWriter
+	values       []sql.NullString
+	outputValues []string
+	pointers     []interface{}
+	w            *SafeCSVWriter
 }
 
 func makeRowOutputter(w *SafeCSVWriter, r *sql.Rows) (*rowOutputter, error) {
@@ -55,12 +56,13 @@ func makeRowOutputter(w *SafeCSVWriter, r *sql.Rows) (*rowOutputter, error) {
 
 	// TODO(awreece) Is it possible to avoid egregious heap allocations?
 	res := make([]sql.NullString, len(columns))
+	resO := make([]string, len(columns))
 	resP := make([]interface{}, len(columns))
 	for i := range columns {
 		resP[i] = &res[i]
 	}
 
-	return &rowOutputter{res, resP, w}, nil
+	return &rowOutputter{res, resO, resP, w}, nil
 }
 
 func (ro *rowOutputter) outputRows(r *sql.Rows) error {
@@ -68,15 +70,14 @@ func (ro *rowOutputter) outputRows(r *sql.Rows) error {
 		return err
 	}
 
-        vals := make([]string, len(ro.values))
-        for i,v := range ro.values {
-            if v.Valid {
-                vals[i] = v.String
-            } else {
-                vals[i] = "NULL"
-            }
-        }
-	if err := ro.w.Write(vals); err != nil {
+	for i, v := range ro.values {
+		if v.Valid {
+			ro.outputValues[i] = v.String
+		} else {
+			ro.outputValues[i] = "\\N"
+		}
+	}
+	if err := ro.w.Write(ro.outputValues); err != nil {
 		return err
 	}
 
