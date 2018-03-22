@@ -23,6 +23,21 @@ sudo apt-get -y install golang
 sudo apt-get -y install git
 ```
 
+Dbbench uses `context` package which is included in golang version > 1.7
+Check the golang version
+
+```console
+go version
+```
+
+If your distribution comes with an older version of golang or the required version is not included in the repository, download and install golang manually. 
+
+```console
+sudo curl -O https://storage.googleapis.com/golang/go1.9.1.linux-amd64.tar.gz
+sudo tar -xvf go1.9.1.linux-amd64.tar.gz
+sudo mv go /usr/local
+```
+
 If you are installing `go` for the first time, you will also need
 to [set your `GOPATH` environment
 variable](https://golang.org/doc/code.html#GOPATH) and add `$GOPATH/bin` to
