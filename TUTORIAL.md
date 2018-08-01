@@ -53,8 +53,8 @@ A job can be named any thing other than one of the 3 reserved names:
 the workload is started and the `teardown` section is run after the
 workload has finished (the `global` seciton is currently unused).
 
-For example, the following workload creates a table (named `test_table`)
-and data for testing and destroys the database 
+For example, the following workload creates a table (named `test_table`),
+adds data for testing, and destroys the table after it has finished:
 
 ```ini
 [setup]
