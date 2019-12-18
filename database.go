@@ -92,4 +92,5 @@ var supportedDatabaseFlavors = map[string]DatabaseFlavor{
 	"mysql":    &sqlDatabaseFlavor{"mysql", mySQLDataSourceName, checkSQLQuery},
 	"mssql":    &sqlDatabaseFlavor{"mssql", sqlServerDataSourceName, checkSQLQuery},
 	"postgres": &sqlDatabaseFlavor{"postgres", postgresDataSourceName, checkSQLQuery},
+	"vertica": &sqlDatabaseFlavor{"vertica", verticaDataSourceName, checkSQLQuery},
 }
