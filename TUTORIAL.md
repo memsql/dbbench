@@ -268,3 +268,18 @@ Caveats:
 > **Tutoral Question: Write a query-log that run 4 concurrent sleep(1) queries. When you are done, check the example [`dbbench` config  file](examples/query-log.ini) and [query log file](examples/query.log).**
 
 > **Tutoral Question: Use `tcpdump` to generate a `dbbench` compatible log file. One example is [here](http://codearcana.com/posts/2016/07/21/fast-query-log-with-tcpdump-and-tshark.html).**
+
+## Running repeated queries from a file
+Sourcing a query to run repeatedly from a file can be done using `query-file`.
+To use `query-file` in a job:
+
+```ini
+[query-file]
+query-file=/path/to/query-file.sql
+```
+
+The file consists of a single query:
+
+```query-file.sql
+select "hello world";
+```
