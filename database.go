@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2016-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,12 @@ type DatabaseFlavor interface {
 	 * (e.g. ";") for most SQL databases.
 	 */
 	QuerySeparator() string
+
+	/*
+	 * The extracted error code (string) from the error (error) thrown by the database driver. This is needed to let
+	 * dbbench handle arbitrary errors from any given database flavor.
+	 */
+	ErrorCode(error) (string, error)
 }
 
 var EmptyQueryError = errors.New("empty query found")
@@ -88,9 +94,10 @@ type Database interface {
 	Close()
 }
 
+// TODO: implement error parsing for mssql and vertica
 var supportedDatabaseFlavors = map[string]DatabaseFlavor{
-	"mysql":    &sqlDatabaseFlavor{"mysql", mySQLDataSourceName, checkSQLQuery},
-	"mssql":    &sqlDatabaseFlavor{"mssql", sqlServerDataSourceName, checkSQLQuery},
-	"postgres": &sqlDatabaseFlavor{"postgres", postgresDataSourceName, checkSQLQuery},
-	"vertica": &sqlDatabaseFlavor{"vertica", verticaDataSourceName, checkSQLQuery},
+	"mysql":    &sqlDatabaseFlavor{"mysql", mySQLDataSourceName, checkSQLQuery, mySQLErrorCodeParser},
+	"mssql":    &sqlDatabaseFlavor{"mssql", sqlServerDataSourceName, checkSQLQuery, unimplementedErrorCodeParser},
+	"postgres": &sqlDatabaseFlavor{"postgres", postgresDataSourceName, checkSQLQuery, postgresErrorCodeParser},
+	"vertica":  &sqlDatabaseFlavor{"vertica", verticaDataSourceName, checkSQLQuery, unimplementedErrorCodeParser},
 }

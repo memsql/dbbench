@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2015-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/awreece/goini"
 	"io"
 	"io/ioutil"
 	"os"
@@ -29,13 +28,17 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/awreece/goini"
 )
 
 type Config struct {
-	Duration time.Duration
-	Setup    []string
-	Teardown []string
-	Jobs     map[string]*Job
+	Flavor         DatabaseFlavor
+	Duration       time.Duration
+	Setup          []string
+	Teardown       []string
+	Jobs           map[string]*Job
+	AcceptedErrors Set
 }
 
 func (c *Config) String() string {
@@ -79,6 +82,17 @@ var globalOptions = goini.DecodeOptionSet{
 		Parse: func(v string, gsp interface{}) (e error) {
 			gsp.(*globalSectionParser).config.Duration, e = time.ParseDuration(v)
 			return e
+		},
+	},
+	"error": &goini.DecodeOption{Kind: goini.MultiOption,
+		Usage: "Globally accepted errors.",
+		Parse: func(v string, gspi interface{}) error {
+			gsp := gspi.(*globalSectionParser)
+			if gsp.config.AcceptedErrors == nil {
+				gsp.config.AcceptedErrors = make(Set)
+			}
+			gsp.config.AcceptedErrors.Add(v)
+			return nil
 		},
 	},
 }
@@ -374,6 +388,8 @@ func decodeConfigJobs(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir str
 
 func parseIniConfig(df DatabaseFlavor, iniConfig *goini.RawConfig, basedir string) (*Config, error) {
 	var config = new(Config)
+
+	config.Flavor = df
 
 	if err := decodeGlobalSection(df, iniConfig.GlobalSection, config); err != nil {
 		return nil, fmt.Errorf("Error parsing global section: %v", err)

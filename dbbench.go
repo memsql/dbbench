@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2015-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,17 +17,18 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	_ "github.com/denisenkom/go-mssqldb"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
-	_ "github.com/vertica/vertica-sql-go"
-	"golang.org/x/net/context"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
+
+	_ "github.com/denisenkom/go-mssqldb"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/vertica/vertica-sql-go"
 )
 
 func cancelOnInterrupt(cancel context.CancelFunc) {
@@ -41,7 +42,7 @@ func cancelOnInterrupt(cancel context.CancelFunc) {
 	}()
 }
 
-func runTest(db Database, config *Config) {
+func runTest(db Database, df DatabaseFlavor, config *Config) {
 	if len(config.Setup) > 0 {
 		log.Printf("Performing setup")
 		for _, query := range config.Setup {
@@ -58,7 +59,7 @@ func runTest(db Database, config *Config) {
 		ctx, _ = context.WithTimeout(ctx, config.Duration)
 	}
 
-	testStats := processResults(config, makeJobResultChan(ctx, db, config.Jobs))
+	testStats := processResults(config, makeJobResultChan(ctx, db, df, config.Jobs))
 
 	for name, stats := range testStats {
 		log.Printf("%s: %v", name, stats)
@@ -138,6 +139,6 @@ func main() {
 		defer db.Close()
 
 		os.Chdir(*baseDir)
-		runTest(db, config)
+		runTest(db, flavor, config)
 	}
 }

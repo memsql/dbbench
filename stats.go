@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2015-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,12 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"math"
+	"math/bits"
 	"math/rand"
+	"strings"
+	"time"
 )
 
 var maxSampleCount = flag.Int64("max-sample-count", 10000, "Samples to keep when streaming.")
@@ -28,32 +32,57 @@ type StreamingHistogram struct {
 	Buckets [64]uint64
 }
 
-func log2(val uint64) int {
-	if val == 0 {
-		return -1
-	}
-
-	var bit uint
-	var masks = []uint64{
-		0xFFFFFFFF00000000,
-		0xFFFF0000,
-		0xFF00,
-		0xF0,
-		0xC,
-		0x2,
-	}
-	for i, m := range masks {
-		shift := uint(1 << uint(len(masks)-1-i))
-		if (val & m) > 0 {
-			bit |= shift
-			val >>= shift
-		}
-	}
-	return int(bit)
+func (sh *StreamingHistogram) Add(x uint64) {
+	sh.Buckets[bits.Len64(x)] += 1
 }
 
-func (sh *StreamingHistogram) Add(x uint64) {
-	sh.Buckets[log2(x)+1] += 1
+func histogramBar(str *strings.Builder, count, maxCount uint64) {
+	width := int(50 * 8 * float64(count) / float64(maxCount))
+
+	// Deliberately highlight outliers
+	if width == 0 && count > 0 {
+		width = 1
+	}
+	str.WriteString(strings.Repeat("█", width/8))
+	str.WriteString([]string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}[width%8])
+}
+
+func (sh *StreamingHistogram) Histogram() string {
+	var str strings.Builder
+	buckets := sh.Buckets[:]
+
+	var begin = -1
+	var end = -1
+	for i, b := range buckets {
+		if b > 0 {
+			end = i
+			if begin < 0 {
+				begin = i
+			}
+		}
+	}
+	maxCount := maxUint64(buckets)
+
+	for bi, count := range buckets {
+		if bi < begin || bi > end {
+			continue
+		}
+
+		var bucketBottom, bucketTop uint64
+		if bi == 0 {
+			bucketBottom = 0
+		} else {
+			bucketBottom = 1 << uint64(bi-1)
+		}
+		bucketTop = 1 << uint64(bi)
+
+		str.WriteString(fmt.Sprintf(
+			"%12v - %12v [%6d]: ",
+			time.Duration(bucketBottom), time.Duration(bucketTop), count))
+		histogramBar(&str, count, maxCount)
+		str.WriteString("\n")
+	}
+	return str.String()
 }
 
 type StreamingSample struct {

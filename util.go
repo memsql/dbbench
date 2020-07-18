@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2016-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 type WriteFileFlagValue struct {
@@ -58,6 +58,17 @@ func (wffv *WriteFileFlagValue) GetFile() *os.File {
 	return wffv.f
 }
 
+type Set map[interface{}]struct{}
+
+func (s Set) Add(i interface{}) {
+	s[i] = struct{}{}
+}
+
+func (s Set) Contains(i interface{}) bool {
+	_, ok := s[i]
+	return ok
+}
+
 func firstString(c, d string) string {
 	if c != "" {
 		return c
@@ -81,23 +92,23 @@ func quotedValue(i interface{}) string {
 	case string:
 		return strconv.Quote(v)
 	case []string:
-		var buf bytes.Buffer
-		buf.WriteString("[")
+		var str strings.Builder
+		str.WriteString("[")
 		var printed bool
 		for _, s := range v {
 			if printed {
-				buf.WriteString(", ")
+				str.WriteString(", ")
 			}
-			buf.WriteString(strconv.Quote(s))
+			str.WriteString(strconv.Quote(s))
 			printed = true
 		}
-		buf.WriteString("]")
-		return buf.String()
+		str.WriteString("]")
+		return str.String()
 	}
 }
 
 func quotedStruct(s interface{}) string {
-	var buf bytes.Buffer
+	var str strings.Builder
 
 	structType := reflect.TypeOf(s)
 	structValue := reflect.ValueOf(s)
@@ -106,10 +117,10 @@ func quotedStruct(s interface{}) string {
 		structType = structType.Elem()
 		structValue = structValue.Elem()
 
-		buf.WriteString("&")
+		str.WriteString("&")
 	}
 
-	buf.WriteString(fmt.Sprintf("%s{", structType.Name()))
+	str.WriteString(fmt.Sprintf("%s{", structType.Name()))
 
 	var printedField bool
 	for fi := 0; fi < structType.NumField(); fi++ {
@@ -118,16 +129,16 @@ func quotedStruct(s interface{}) string {
 
 		if !reflect.DeepEqual(reflect.Zero(structField.Type).Interface(), fieldValue) {
 			if printedField {
-				buf.WriteString(", ")
+				str.WriteString(", ")
 			}
-			buf.WriteString(fmt.Sprintf("%s: %s", structField.Name,
+			str.WriteString(fmt.Sprintf("%s: %s", structField.Name,
 				quotedValue(fieldValue)))
 			printedField = true
 		}
 	}
-	buf.WriteString("}")
+	str.WriteString("}")
 
-	return buf.String()
+	return str.String()
 }
 
 func minFloat64(vals []float64) float64 {

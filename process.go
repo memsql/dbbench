@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2015-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@
 package main
 
 import (
-	"bytes"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -43,94 +43,78 @@ func init() {
 }
 
 type jobStats struct {
-	StreamingStats
-	RowsAffected int64
-	Start        time.Duration
-	Stop         time.Duration
+	Transactions   StreamingStats
+	Errors         StreamingStats
+	Queries        uint64
+	RowsAffected   int64
+	TotalErrors    uint64
+	AcceptedErrors uint64
+	Start          time.Duration
+	Stop           time.Duration
 }
 
 type JobStats struct {
 	jobStats
-	StreamingHistogram
+	Transactions StreamingHistogram
+	Errors       StreamingHistogram
 }
 
-func (js *jobStats) Update(jr *JobResult) {
-	js.Add(float64(jr.Elapsed))
+func (js *jobStats) Update(config *Config, jr *JobResult) {
+	js.AcceptedErrors += jr.Errors.TotalAccepted(config.Flavor, config.AcceptedErrors)
+	if totalErrors := jr.Errors.TotalErrors(); totalErrors > 0 {
+		// TODO(msilver): why do we have both? it appears the concept of "transaction" within dbbench maps to one end to
+		// end execution of a job, even if that job contains multiple queries (this is only possible with the
+		// multi-query-mode option, which is used rarely). This is incredibly misleading, because row count sums
+		// across all queries in a job, yet we report "transactions per second (TPS)" which is really more like
+		// "jobs per second".
+		js.TotalErrors += totalErrors      // actual number of errors
+		js.Errors.Add(float64(jr.Elapsed)) // number of jobs that caused errors
+	} else {
+		// Only count transactions that succeed
+		js.RowsAffected += jr.RowsAffected
+		js.Transactions.Add(float64(jr.Elapsed))
+	}
+	js.Queries += uint64(jr.Queries)
 	if js.Start == 0 || jr.Start < js.Start {
 		js.Start = jr.Start
 	}
 	if js.Stop == 0 || jr.Start+jr.Elapsed > js.Stop {
 		js.Stop = jr.Start + jr.Elapsed
 	}
-	js.RowsAffected += jr.RowsAffected
 }
 
 func (js *jobStats) String() string {
 	jsTime := js.Stop.Seconds() - js.Start.Seconds()
-	return fmt.Sprintf("latency %v±%v; %d transactions (%.3f TPS); %d rows (%.3f RPS)",
-		time.Duration(js.Mean()), time.Duration(js.Confidence(*confidence)),
-		js.Count(), float64(js.Count())/jsTime,
-		js.RowsAffected, float64(js.RowsAffected)/jsTime)
+	return fmt.Sprintf("%d transactions (%.3f TPS), latency %v±%v; %d rows (%.3f RPS), %d queries (%.3f QPS); %d aborts (%.3f%%), latency %v±%v",
+		js.Transactions.Count(), float64(js.Transactions.Count())/jsTime,
+		time.Duration(js.Transactions.Mean()), time.Duration(js.Transactions.Confidence(*confidence)),
+		js.RowsAffected, float64(js.RowsAffected)/jsTime,
+		js.Queries, float64(js.Queries)/jsTime,
+		// TODO(msilver) see above re inconsistent counting methods. Should we divide by js.Transactions.Count() instead?
+		js.TotalErrors, 100*float64(js.TotalErrors)/float64(js.Queries),
+		time.Duration(js.Errors.Mean()), time.Duration(js.Errors.Confidence(*confidence)))
 }
 
-func (js *JobStats) Update(jr *JobResult) {
-	js.jobStats.Update(jr)
-	js.StreamingHistogram.Add(uint64(jr.Elapsed))
-}
-
-func histogramBar(buf *bytes.Buffer, count, maxCount uint64) {
-	width := int(50 * 8 * float64(count) / float64(maxCount))
-
-	// Deliberately highlight outliers
-	if width == 0 && count > 0 {
-		width = 1
+func (js *JobStats) Update(config *Config, jr *JobResult) {
+	unhandledErrors := jr.Errors.UnhandledErrors(config.Flavor, config.AcceptedErrors)
+	if len(unhandledErrors) > 0 {
+		log.Fatalf("Unexpected errors while running %v:\n%v", jr.Name, unhandledErrors)
 	}
-	for i := 0; i < width/8; i++ {
-		buf.WriteString("█")
+	js.jobStats.Update(config, jr)
+	if jr.Errors.TotalErrors() == 0 {
+		js.Transactions.Add(uint64(jr.Elapsed))
+	} else {
+		js.Errors.Add(uint64(jr.Elapsed))
 	}
-	buf.WriteString([]string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}[width%8])
-}
-
-func (js *JobStats) Histogram() string {
-	var buf bytes.Buffer
-	buckets := js.StreamingHistogram.Buckets[:]
-
-	var minBucket = -1
-	var maxBucket = -1
-	for i, b := range buckets {
-		if b > 0 {
-			maxBucket = i
-			if minBucket < 0 {
-				minBucket = i
-			}
-		}
-	}
-	maxCount := maxUint64(buckets)
-
-	for bi, count := range buckets {
-		if bi < minBucket || bi > maxBucket {
-			continue
-		}
-
-		var bucketBottom, bucketTop uint64
-		if bi == 0 {
-			bucketBottom = 0
-		} else {
-			bucketBottom = 1 << uint64(bi-1)
-		}
-		bucketTop = 1 << uint64(bi)
-
-		buf.WriteString(fmt.Sprintf(
-			"%12v - %12v [%6d]: ",
-			time.Duration(bucketBottom), time.Duration(bucketTop), count))
-		histogramBar(&buf, count, maxCount)
-		buf.WriteString("\n")
-	}
-	return buf.String()
 }
 
 func (js *JobStats) String() string {
-	return js.jobStats.String() + "\n" + js.Histogram()
+	var str strings.Builder
+	str.WriteString(fmt.Sprintf("%v\nTransactions:\n%v", js.jobStats.String(), js.Transactions.Histogram()))
+	if abortHistogram := js.Errors.Histogram(); len(abortHistogram) > 0 {
+		str.WriteString(fmt.Sprintf("Aborts:\n%v", abortHistogram))
+	}
+	return str.String()
 }
 
 func processResults(config *Config, resultChan <-chan *JobResult) map[string]*JobStats {
@@ -162,6 +146,7 @@ func processResults(config *Config, resultChan <-chan *JobResult) map[string]*Jo
 					strconv.FormatInt(jr.Start.Nanoseconds()/1000, 10),
 					strconv.FormatInt(jr.Elapsed.Nanoseconds()/1000, 10),
 					strconv.FormatInt(jr.RowsAffected, 10),
+					strconv.FormatUint(jr.Errors.TotalErrors(), 10),
 				})
 			}
 			if _, ok := allTestStats[jr.Name]; !ok {
@@ -171,8 +156,8 @@ func processResults(config *Config, resultChan <-chan *JobResult) map[string]*Jo
 				recentTestStats[jr.Name] = new(jobStats)
 			}
 
-			allTestStats[jr.Name].Update(jr)
-			recentTestStats[jr.Name].Update(jr)
+			allTestStats[jr.Name].Update(config, jr)
+			recentTestStats[jr.Name].Update(config, jr)
 
 		case <-ticker.C:
 			for name, stats := range recentTestStats {

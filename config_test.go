@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2016-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,14 @@
 package main
 
 import (
-	"github.com/awreece/goini"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/awreece/goini"
 )
 
 func TestExamplesParse(t *testing.T) {
@@ -72,6 +73,7 @@ func TestParseIniConfig(t *testing.T) {
 	}{
 		{"[test]\nquery=select 1",
 			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
 				Jobs: map[string]*Job{
 					"test": &Job{
 						Name: "test", QueueDepth: 1,
@@ -82,6 +84,7 @@ func TestParseIniConfig(t *testing.T) {
 		},
 		{"[test1]\nquery=select 1\n[test2]\nquery=select 2",
 			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
 				Jobs: map[string]*Job{
 					"test1": &Job{
 						Name: "test1", QueueDepth: 1,
@@ -100,6 +103,7 @@ func TestParseIniConfig(t *testing.T) {
 			rate=1
 			`,
 			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
 				Jobs: map[string]*Job{
 					"test1": &Job{
 						Name: "test1", Rate: 1.0,
@@ -115,6 +119,7 @@ func TestParseIniConfig(t *testing.T) {
 			count=1
 			`,
 			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
 				Jobs: map[string]*Job{
 					"test job": &Job{
 						Name: "test job", QueueDepth: 1, Count: 1,
@@ -137,6 +142,7 @@ func TestParseIniConfig(t *testing.T) {
 			count=30
 			`,
 			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
 				Setup: []string{
 					"insert into t select RAND(), RAND()",
 					"insert into t select RAND(), RAND() from t",
@@ -162,6 +168,7 @@ func TestParseIniConfig(t *testing.T) {
 			stop=15s
 			`,
 			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
 				Jobs: map[string]*Job{
 					"run 2 queries at a time for 10 seconds, starting at 5s": &Job{
 						Name:       "run 2 queries at a time for 10 seconds, starting at 5s",
@@ -179,12 +186,40 @@ func TestParseIniConfig(t *testing.T) {
 			query=select 1+1
 			`,
 			&Config{
+				Flavor:   supportedDatabaseFlavors["mysql"],
 				Duration: 10 * time.Second,
 				Jobs: map[string]*Job{
 					"test job": &Job{
 						Name: "test job", QueueDepth: 1,
 						Queries: []string{"select 1+1"},
 					},
+				},
+			},
+		},
+		{
+			// error(s) can be any string, so long as there is a corresponding parser that converts the
+			// error returned by the database driver into this string. For example mySQLErrorCodeParser or
+			// postgresErrorCodeParser. Below are a few examples. The first is MySQL and MemSQL
+			// ER_LOCK_WAIT_TIMEOUT and the second is Postgres deadlock_detected. (In a real workload, of
+			// course, you wouldn't have errors for two different types of databases.)
+			`
+			error=1205
+			error=40P01
+
+			[test job]
+			query=select 1+1
+			`,
+			&Config{
+				Flavor: supportedDatabaseFlavors["mysql"],
+				Jobs: map[string]*Job{
+					"test job": &Job{
+						Name: "test job", QueueDepth: 1,
+						Queries: []string{"select 1+1"},
+					},
+				},
+				AcceptedErrors: Set{
+					"1205":  struct{}{},
+					"40P01": struct{}{},
 				},
 			},
 		},

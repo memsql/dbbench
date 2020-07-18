@@ -265,9 +265,9 @@ Caveats:
   - Session variables, transactions and any other stateful operations are unsupported.
   
 
-> **Tutoral Question: Write a query-log that run 4 concurrent sleep(1) queries. When you are done, check the example [`dbbench` config  file](examples/query-log.ini) and [query log file](examples/query.log).**
+> **Tutorial Question: Write a query-log that run 4 concurrent sleep(1) queries. When you are done, check the example [`dbbench` config  file](examples/query-log.ini) and [query log file](examples/query.log).**
 
-> **Tutoral Question: Use `tcpdump` to generate a `dbbench` compatible log file. One example is [here](http://codearcana.com/posts/2016/07/21/fast-query-log-with-tcpdump-and-tshark.html).**
+> **Tutorial Question: Use `tcpdump` to generate a `dbbench` compatible log file. One example is [here](http://codearcana.com/posts/2016/07/21/fast-query-log-with-tcpdump-and-tshark.html).**
 
 ## Running repeated queries from a file
 Sourcing a query to run repeatedly from a file can be done using `query-file`.
@@ -283,3 +283,30 @@ The file consists of a single query:
 ```query-file.sql
 select "hello world";
 ```
+
+## Error handling
+By default, errors from the database cause DBBench to stop the job. For example:
+```console
+Errors (with frequency count)
+  (1x) pq: could not serialize access due to concurrent update
+    Error occurred while running:
+    (1x) UPDATE t SET val = val + 1 WHERE val > 200
+```
+This error trace shows the number of times the error occurred (1x), and a
+breakdown of the queries causing the error (`UPDATE t SET val = val + 1 WHERE
+val > 200`, which caused the error one time (1x)).
+
+To mark an error as expected, use the error code for your database flavor:
+```ini
+# MySQL ER_LOCK_WAIT_TIMEOUT
+error=1205
+```
+Multiple errors can be specified. Expected errors are counted and error rate
+(also known as abort rate) is reported.
+
+> **Tutorial Question: Try to write a workload causing lock wait timeouts in
+> MySQL. When you are done, check the example [`dbbench` config
+> file](examples/locks.ini).**
+
+As of writing, DBBench supports error handling in Postgres and MySQL. In other
+database flavors, DBBench gracefully fails upon encountering an error.

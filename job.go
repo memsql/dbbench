@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2015-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
-	"golang.org/x/net/context"
 	"io"
 	"log"
 	"strconv"
@@ -59,26 +59,34 @@ type JobResult struct {
 	Name         string
 	Start        time.Duration
 	Elapsed      time.Duration
+	Queries      int
 	RowsAffected int64
+	Errors       ErrorCounts
 }
 
-func (ji *jobInvocation) Invoke(db Database, results *SafeCSVWriter, start time.Duration) *JobResult {
-	invokeStart := time.Now()
+func (ji *jobInvocation) Invoke(db Database, df DatabaseFlavor, results *SafeCSVWriter, start time.Duration) *JobResult {
+	var elapsed time.Duration
 	var rowsAffected int64
+	errorCounts := make(ErrorCounts)
 
 	for _, qi := range ji.queries {
+		runQueryStart := time.Now()
 		rows, err := db.RunQuery(results, qi.query, qi.args)
+		elapsed += time.Since(runQueryStart)
+
 		if err != nil {
-			// TODO(awreece) Avoid log.Fatal.
-			log.Fatalf("error for query %s in %s: %v", qi.query, ji.name, err)
+			// Attempt to handle the error
+			e := errorCounts.Add(err, qi.query, df)
+			if e != nil {
+				// Error handling not available for this DB flavor
+				log.Fatalf("%v. Error occurred while running %v:\n%v", e, ji.name, err)
+			}
+		} else {
+			rowsAffected += rows
 		}
-		rowsAffected += rows
 	}
 
-	stop := time.Now()
-	elapsed := stop.Sub(invokeStart)
-
-	return &JobResult{ji.name, start, elapsed, rowsAffected}
+	return &JobResult{ji.name, start, elapsed, len(ji.queries), rowsAffected, errorCounts}
 }
 
 func (ji *jobInvocation) String() string {
@@ -212,7 +220,7 @@ func (job *Job) startQueryChannel(ctx context.Context) <-chan *jobInvocation {
 	}
 }
 
-func (job *Job) runLoop(ctx context.Context, db Database, startTime time.Time, results chan<- *JobResult) {
+func (job *Job) runLoop(ctx context.Context, db Database, df DatabaseFlavor, startTime time.Time, results chan<- *JobResult) {
 	log.Printf("starting %v", job.Name)
 	defer log.Printf("stopping %v", job.Name)
 
@@ -229,7 +237,7 @@ func (job *Job) runLoop(ctx context.Context, db Database, startTime time.Time, r
 		}
 		go func(_ji *jobInvocation) {
 			defer wg.Done()
-			r := _ji.Invoke(db, job.QueryResults, time.Since(startTime))
+			r := _ji.Invoke(db, df, job.QueryResults, time.Since(startTime))
 			if job.QueueDepth > 0 {
 				queueSem <- nil
 			}
@@ -244,7 +252,7 @@ func (job *Job) runLoop(ctx context.Context, db Database, startTime time.Time, r
 	close(queueSem)
 }
 
-func (job *Job) Run(ctx context.Context, db Database, results chan<- *JobResult) {
+func (job *Job) Run(ctx context.Context, db Database, df DatabaseFlavor, results chan<- *JobResult) {
 	startTime := time.Now()
 
 	if job.Stop > 0 {
@@ -257,7 +265,7 @@ func (job *Job) Run(ctx context.Context, db Database, results chan<- *JobResult)
 	case <-ctx.Done():
 		return
 	case <-time.NewTimer(job.Start).C:
-		job.runLoop(ctx, db, startTime, results)
+		job.runLoop(ctx, db, df, startTime, results)
 	}
 }
 
@@ -270,7 +278,7 @@ func (job *Job) cleanup() {
 	}
 }
 
-func makeJobResultChan(ctx context.Context, db Database, jobs map[string]*Job) <-chan *JobResult {
+func makeJobResultChan(ctx context.Context, db Database, df DatabaseFlavor, jobs map[string]*Job) <-chan *JobResult {
 	outChan := make(chan *JobResult)
 
 	go func() {
@@ -278,7 +286,7 @@ func makeJobResultChan(ctx context.Context, db Database, jobs map[string]*Job) <
 		for _, job := range jobs {
 			wg.Add(1)
 			go func(j *Job) {
-				j.Run(ctx, db, outChan)
+				j.Run(ctx, db, df, outChan)
 				wg.Done()
 			}(job)
 		}

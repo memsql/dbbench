@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 by MemSQL. All rights reserved.
+ * Copyright (c) 2016-2020 by MemSQL. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/go-sql-driver/mysql"
+	"github.com/lib/pq"
 )
 
 type sqlDb struct {
@@ -139,6 +142,7 @@ type sqlDatabaseFlavor struct {
 	name      string
 	dsnFunc   func(cc *ConnectionConfig) string
 	checkFunc func(q string) error
+	errFunc   func(e error) (string, error)
 }
 
 var maxIdleConns = flag.Int("max-idle-conns", 100, "Maximum idle database connections")
@@ -183,6 +187,10 @@ func (sq *sqlDatabaseFlavor) Connect(cc *ConnectionConfig) (Database, error) {
 
 func (sq *sqlDatabaseFlavor) CheckQuery(q string) error {
 	return sq.checkFunc(q)
+}
+
+func (sq *sqlDatabaseFlavor) ErrorCode(e error) (string, error) {
+	return sq.errFunc(e)
 }
 
 func checkSQLQuery(q string) error {
@@ -241,4 +249,26 @@ func verticaDataSourceName(cc *ConnectionConfig) string {
 		firstInt(cc.Port, 5433),
 		firstString(cc.Database, ""),
 		firstString(cc.Params, ""))
+}
+
+func mySQLErrorCodeParser(e error) (string, error) {
+	err, ok := e.(*mysql.MySQLError)
+	if !ok {
+		return "", fmt.Errorf("Unrecognized MySQL error: %v", e)
+	}
+	return fmt.Sprint(err.Number), nil
+}
+
+func postgresErrorCodeParser(e error) (string, error) {
+	err, ok := e.(*pq.Error)
+	if !ok {
+		return "", fmt.Errorf("Unrecognized Postgres error: %v", e)
+	}
+	// err.Code is a pq.ErrorCode type, which is just an alias of string:
+	// https://github.com/lib/pq/blob/cb2b4276bb62435f140cb330f14dea6feeccfe71/error.go#L46
+	return string(err.Code), nil
+}
+
+func unimplementedErrorCodeParser(e error) (string, error) {
+	return "", errors.New("Database flavor currently does not support parsing errors")
 }
