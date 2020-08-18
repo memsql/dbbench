@@ -1,4 +1,6 @@
 # dbbench
+[![Continuous Integration](https://circleci.com/gh/memsql/dbbench.svg?style=shield)](https://circleci.com/gh/memsql/dbbench)
+[![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 `dbbench` is a fast, lightweight database workload generator that executes a
 workload defined a flexible configuration file. Using this `dbbench`, simple
@@ -23,20 +25,14 @@ sudo apt-get -y install golang
 sudo apt-get -y install git
 ```
 
-Dbbench uses `context` package which is included in golang version > 1.7
-Check the golang version
+`dbbench` requires golang version >= 1.10. Check the golang version:
 
 ```console
 go version
 ```
 
-If your distribution comes with an older version of golang or the required version is not included in the repository, download and install golang manually. 
-
-```console
-sudo curl -O https://storage.googleapis.com/golang/go1.9.1.linux-amd64.tar.gz
-sudo tar -xvf go1.9.1.linux-amd64.tar.gz
-sudo mv go /usr/local
-```
+If your distribution comes with an older version of golang or the required version is not included in the repository,
+[download and install a newer version of golang](https://golang.org/doc/install).
 
 If you are installing `go` for the first time, you will also need
 to [set your `GOPATH` environment
@@ -51,14 +47,8 @@ export PATH=$PATH:$GOPATH/bin
 
 Once `go` has been set up, use the `go` tool to get `dbbench`.
 
-``` console
-go get github.com/memsql/dbbench
-```
-
-You can also use the `go` tool to update `dbbench`:
-
 ```console
-go get -u github.com/memsql/dbbench
+go get github.com/memsql/dbbench
 ```
 
 ## Running `dbbench`
