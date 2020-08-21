@@ -106,7 +106,7 @@ func main() {
 	}
 
 	if *printVersion {
-		fmt.Println("0.3.1")
+		fmt.Println("0.4")
 		return
 	}
 
