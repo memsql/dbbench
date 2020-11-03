@@ -153,8 +153,12 @@ func (sq *sqlDatabaseFlavor) QuerySeparator() string {
 }
 
 func (sq *sqlDatabaseFlavor) Connect(cc *ConnectionConfig) (Database, error) {
+	realPassword := cc.Password
+	cc.Password = "XXX" // Mask password before printing it.
 	dsn := sq.dsnFunc(cc)
 	log.Println("Connecting to", dsn)
+	cc.Password = realPassword
+	dsn = sq.dsnFunc(cc)
 
 	db, err := sql.Open(sq.name, dsn)
 	if err != nil {
