@@ -218,7 +218,7 @@ func mySQLDataSourceName(cc *ConnectionConfig) string {
 		firstString(cc.Host, "localhost"),
 		firstInt(cc.Port, 3306),
 		firstString(cc.Database, ""),
-		firstString(cc.Params, "allowAllFiles=true&interpolateParams=true"))
+		firstString(cc.Params, "allowAllFiles=true&interpolateParams=true&allowCleartextPasswords=true&tls=preferred"))
 }
 
 func postgresDataSourceName(cc *ConnectionConfig) string {
