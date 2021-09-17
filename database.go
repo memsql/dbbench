@@ -18,6 +18,9 @@ package main
 
 import (
 	"errors"
+	"net/url"
+	"strconv"
+	"strings"
 )
 
 /*
@@ -69,6 +72,37 @@ type ConnectionConfig struct {
 	Port     int
 	Database string
 	Params   string
+}
+
+/*
+ * Override the connection configuration with parameters from the URL.
+ *
+ * If a given parameter is not inside the URL, then the one from
+ * the connection configuration is kept untouched.
+ */
+func (cc *ConnectionConfig) OverrideFromURL(u url.URL) {
+	if u.Host != "" {
+		cc.Host = u.Host
+	}
+	if u.User.Username() != "" {
+		cc.Username = u.User.Username()
+	}
+	pass, isPassSet := u.User.Password()
+	if isPassSet {
+		cc.Password = pass
+	}
+	if u.Hostname() != "" {
+		cc.Host = u.Hostname()
+	}
+	if u.Port() != "" {
+		cc.Port, _ = strconv.Atoi(u.Port())
+	}
+	if u.Path != "" {
+		cc.Database = strings.Trim(u.Path, "/")
+	}
+	if u.Query() != nil {
+		cc.Params = u.Query().Encode()
+	}
 }
 
 /*
