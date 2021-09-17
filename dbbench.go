@@ -18,9 +18,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -78,7 +80,6 @@ func runTest(db Database, df DatabaseFlavor, config *Config) {
 var driverName = flag.String("driver", "mysql", "Database driver to use.")
 var baseDir = flag.String("base-dir", "",
 	"Directory to use as base for files (default directory containing runfile).")
-
 var printVersion = flag.Bool("version", false, "Print the version and quit")
 
 var GlobalConfig ConnectionConfig
@@ -96,6 +97,19 @@ func init() {
 		"Database connection database")
 	flag.StringVar(&GlobalConfig.Params, "params", "",
 		"Override default connection parameters")
+	flag.Func("url", "Connection url (mysql://user:pass@host:port?params), parameters provided here override those provided by other options", func(s string) error {
+		if s == "" {
+			return errors.New("empty connection URL")
+		} else if u, err := url.Parse(s); err != nil {
+			return err
+		} else {
+			GlobalConfig.OverrideFromURL(*u)
+			if u.Scheme != "" {
+				*driverName = u.Scheme
+			}
+		}
+		return nil
+	})
 }
 
 func main() {
@@ -125,7 +139,7 @@ func main() {
 
 	flavor, ok := supportedDatabaseFlavors[*driverName]
 	if !ok {
-		log.Fatalf("Database flavor %s not supportd", *driverName)
+		log.Fatalf("Database flavor %s not supported", *driverName)
 	}
 
 	config, err := parseConfig(flavor, configFile, *baseDir)
