@@ -84,6 +84,33 @@ var printVersion = flag.Bool("version", false, "Print the version and quit")
 
 var GlobalConfig ConnectionConfig
 
+type URLString struct {
+	URL *url.URL
+}
+
+func (v URLString) String() string {
+	if v.URL != nil {
+		return v.URL.String()
+	}
+	return ""
+}
+
+func (v URLString) Set(s string) error {
+	if s == "" {
+		return errors.New("empty connection URL")
+	} else if u, err := url.Parse(s); err != nil {
+		return err
+	} else {
+		GlobalConfig.OverrideFromURL(*u)
+		if u.Scheme != "" {
+			*driverName = u.Scheme
+		}
+	}
+	return nil
+}
+
+var u = &url.URL{}
+
 func init() {
 	flag.StringVar(&GlobalConfig.Username, "username", "",
 		"Database connection username")
@@ -97,19 +124,7 @@ func init() {
 		"Database connection database")
 	flag.StringVar(&GlobalConfig.Params, "params", "",
 		"Override default connection parameters")
-	flag.Func("url", "Connection url (mysql://user:pass@host:port?params), parameters provided here override those provided by other options", func(s string) error {
-		if s == "" {
-			return errors.New("empty connection URL")
-		} else if u, err := url.Parse(s); err != nil {
-			return err
-		} else {
-			GlobalConfig.OverrideFromURL(*u)
-			if u.Scheme != "" {
-				*driverName = u.Scheme
-			}
-		}
-		return nil
-	})
+	flag.Var(URLString{u}, "url", "Connection url (mysql://user:pass@host:port?params), parameters provided here override those provided by other options")
 }
 
 func main() {
