@@ -25,7 +25,7 @@ sudo apt-get -y install golang
 sudo apt-get -y install git
 ```
 
-`dbbench` requires golang version >= 1.10. Check the golang version:
+`dbbench` requires golang version >= 1.13. Check the golang version:
 
 ```console
 go version
