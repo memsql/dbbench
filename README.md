@@ -48,7 +48,7 @@ export PATH=$PATH:$GOPATH/bin
 Once `go` has been set up, use the `go` tool to get `dbbench`.
 
 ```console
-go get github.com/memsql/dbbench
+go install github.com/memsql/dbbench@latest
 ```
 
 ## Running `dbbench`
